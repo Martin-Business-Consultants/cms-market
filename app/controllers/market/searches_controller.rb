@@ -11,7 +11,8 @@ module Market
       "searches" => ["Searches", "The searches customers make: where the site is on Google, on Maps and in each AI's answer for each, what it's worth, and what to write around it."],
       "ai" => ["AI", "How AI assistants answer the tracked searches (ChatGPT, Gemini, Perplexity, Claude, Copilot, Google's AI Overview and AI Mode): whether they name the business, and who and what they cite instead."],
       "local" => ["Local", "Where the business shows on Google Maps, point by point across its area."],
-      "website" => ["Website", "The site itself against the competitors: how visible each is in search (estimated), over the year, their links, the home page's health, and the web naming them."],
+      "website" => ["Website", "The site itself against the competitors: how visible each is in search (estimated), over the year, the home page's health, and the web naming them."],
+      "links" => ["Links", "Other sites linking in: each site's links over the year, links to win back, who links to the site and with what words, and where to get more."],
       "reputation" => ["Reputation", "What customers see and say: each business's reviews on Google (and Trustpilot, Tripadvisor), and its Business Profile."]
     }.freeze
 
@@ -21,6 +22,7 @@ module Market
       @data = Search::Overview.new
       @settings = Settings.current
       @tab = params[:tab].presence_in(TABS.keys - ["local"]) || "searches"
+      @links = Links.new(profile: @data.profile) if @tab == "links"
       @google = ::Google.search_console if defined?(::Google) && ::Google.respond_to?(:search_console)
       @sheet = params[:sheet].to_s.presence
       return unless @sheet && Workup.subject?(@sheet)

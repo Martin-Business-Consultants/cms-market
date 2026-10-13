@@ -25,6 +25,8 @@ class Market::Workup::Brief
       end
   end
 
+  def links = @links ||= Market::Links.new(profile: profile)
+
   def label
     case kind
     when "keyword" then "the search “#{record.keyword}”"
@@ -32,6 +34,7 @@ class Market::Workup::Brief
     when "opportunity" then "the opportunity “#{record.title}”"
     when "finding" then "the finding “#{record.title}”"
     when "page" then "the page “#{record.title}” (/#{(record.path == "home") ? "" : record.path})"
+    when "links" then "winning links to the site"
     else record ? "beating #{record.name} in search" : "the site's visibility in search"
     end
   end
@@ -81,6 +84,7 @@ class Market::Workup::Brief
     when "opportunity" then "The opportunity: #{record.title} (#{record.channel_label}, #{record.impact} impact, #{record.effort} effort)\n#{record.detail}\nEvidence: #{record.evidence}"
     when "finding" then "The finding (#{record.severity}): #{record.title}\n#{record.detail}\nThe figures: #{JSON.generate(record.evidence).truncate(4000)}"
     when "page" then "The page to improve: /#{(record.path == "home") ? "" : record.path} (“#{record.title}”), #{record.status}; SEO: #{JSON.generate(record.seo.to_h).truncate(1500)}"
+    when "links" then "Win links: outreach to the likeliest sites as tasks (who, and what to ask for), and posts or pages worth linking to, modelled on what earns competitors links. Don't suggest buying links.\n#{links.facts}"
     else visibility_facts
     end
   end
@@ -120,7 +124,8 @@ class Market::Workup::Brief
     ["Search visibility from DataForSEO (traffic is its estimate):", *rows,
       ("The site's best keywords: #{mine.map { "#{it["keyword"]} (##{it["position"]}, #{it["volume"]}/mo, #{it["url"]})" }.join("; ")}" if mine.any?),
       ("Where #{record.name} is on page one: #{wins.map { "#{it["keyword"]} (##{it["position"]}, #{it["volume"]}/mo)" }.join("; ")}" if wins.any?),
-      "Searches tracked: #{data.keywords.map(&:keyword).join(", ").presence || "none"}"].compact.join("\n")
+      "Searches tracked: #{data.keywords.map(&:keyword).join(", ").presence || "none"}",
+      (links.facts if links.pulled?)].compact.join("\n")
   end
 
   def pages

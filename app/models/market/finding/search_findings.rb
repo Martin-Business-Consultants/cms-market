@@ -157,24 +157,76 @@ module Market
       found
     end
 
-    # Links: the site's linking sites falling over the year, and the sites linking to competitors but not to it.
+    # Links (Market::Links): linking sites falling over the year, links to pages that no longer answer, good
+    # links lost lately, a competitor winning links faster, the words the site is linked with, spammy linking
+    # sites, the sites linking to competitors but not to it, and the competitors' pages that earn links.
     def link_findings
+      links = Market::Links.new(profile: profile)
+      own = links.own_site
+      return [] unless own
+
       found = []
-      months = Array(own_latest("backlink_history")&.data&.dig("months"))
+      months = own.months
       if months.size >= 6
         before = months.first["referring_domains"].to_i
         now = months.last["referring_domains"].to_i
         if before >= 20 && now < before * 0.9
           found << finding("links_falling", "links_falling", "medium", "Sites linking to #{name} fell from #{before} to #{now} in a year",
             detail: "Lost links lose rankings. Find the ones lost (moved pages, closed directories) and win them back.", channel: "seo",
-            evidence: {"a_year_ago" => before, "now" => now, "lost_last_3_months" => months.last(3).sum { it["lost_referring_domains"].to_i }})
+            evidence: {"a_year_ago" => before, "now" => now, "lost_last_3_months" => own.recent("lost_referring_domains")})
         end
       end
-      gap = own_latest("link_gap")&.data
-      if gap && Array(gap["sites"]).any?
+      unfixed = links.unfixed
+      if unfixed.any?
+        sites = unfixed.sum { it["sites"].to_i }
+        found << finding("links_broken", "links_broken", (sites >= 5 || unfixed.any? { it["best_rank"].to_i >= Market::Links::VALUABLE }) ? "high" : "medium",
+          "#{sites} #{(sites == 1) ? "site links" : "sites link"} to #{unfixed.size} #{(unfixed.size == 1) ? "page" : "pages"} on #{name} that no longer #{(unfixed.size == 1) ? "exists" : "exist"}",
+          detail: "Those links count for nothing while they land on an error. A redirect from each old address to the page that replaced it wins them back at once: Search › Links does it in a click.",
+          channel: "seo", evidence: {"pages" => unfixed.first(12).map { it.slice("path", "status", "sites", "best_rank") }})
+      end
+      lost = links.valuable_lost
+      if lost.any?
+        found << finding("links_lost", "links_lost", (lost.size >= 3) ? "medium" : "low",
+          "#{name} lost #{lost.size} good #{(lost.size == 1) ? "link" : "links"} in #{links.changes["days"]} days",
+          detail: "Followed links from well-ranked sites. A page moved, a listing lapsed or a mention was edited out: ask each to put it back, or point it at the page that's there now.",
+          channel: "seo", evidence: {"links" => lost.first(12).map { it.slice("domain", "url_from", "url_to", "rank") }})
+      end
+      racing = links.competitor_sites.select { it.months.size >= 3 }.max_by { it.recent("new_referring_domains") }
+      if racing && months.size >= 3 && racing.recent("new_referring_domains") >= [own.recent("new_referring_domains") * 2, 5].max
+        found << finding("links_pace:#{racing.domain}", "links_pace", "medium",
+          "#{racing.name} won #{racing.recent("new_referring_domains")} linking sites in three months; #{name} won #{own.recent("new_referring_domains")}",
+          detail: "Links are won steadily: listings, partners, local press, guest posts, and pages worth citing. Search › Links shows where theirs come from.",
+          channel: "seo", evidence: {"domain" => racing.domain, "theirs" => racing.recent("new_referring_domains"), "own" => own.recent("new_referring_domains")})
+      end
+      mix = links.anchor_mix
+      if links.anchors.sum { it["sites"].to_i } >= 10
+        if mix["keyword"].to_i >= 30
+          found << finding("anchors_keyword", "anchors_keyword", "medium", "#{mix["keyword"]}% of the sites linking to #{name} use a search it wants to win as the words",
+            detail: "That many exact-match links can look bought to Google. Most natural links use the business's name or address; ask for those in new links.",
+            channel: "seo", evidence: {"mix" => mix, "anchors" => links.anchors.select { it["kind"] == "keyword" }.first(8).map { it.slice("anchor", "sites") }})
+        elsif mix["brand"].to_i + mix["url"].to_i < 20
+          found << finding("anchors_unbranded", "anchors_unbranded", "low", "Few sites link to #{name} by its name",
+            detail: "Links that name the business build it as a brand for Google and AI answers. Ask listings and partners to use the name.",
+            channel: "seo", evidence: {"mix" => mix})
+        end
+      end
+      spammy = links.spammy
+      if spammy.size >= 5
+        found << finding("links_spammy", "links_spammy", "low", "#{spammy.size} spammy-looking sites link to #{name}",
+          detail: "Google mostly ignores links like these. Disavow them in Search Console only if Google has taken a manual action against the site; otherwise leave them.",
+          channel: "seo", evidence: {"sites" => spammy.first(15).map { it.slice("domain", "spam", "rank") }})
+      end
+      gap = links.gap
+      if Array(gap["sites"]).any?
         found << finding("link_gap", "link_gap", "medium", "#{gap["total"]} sites link to competitors but not to #{name}",
           detail: "The sites already linking to the competitors (directories, associations, suppliers, local press) are the likeliest to link to the business too.",
           channel: "seo", evidence: {"sites" => gap["sites"].first(12).map { it.slice("domain", "links_to", "rank") }})
+      end
+      assets = links.linkable_pages.flat_map { |site, pages| pages.select { it["sites"].to_i >= 10 }.map { it.merge("competitor" => site.name) } }
+      if assets.any?
+        found << finding("linkable_pages", "linkable_pages", "low", "#{assets.size} competitor #{(assets.size == 1) ? "page earns" : "pages earn"} links from 10 or more sites",
+          detail: "Guides, price lists, tools and local resources get linked to. A better one on the site can earn the same links.",
+          channel: "content", evidence: {"pages" => assets.sort_by { -it["sites"].to_i }.first(10).map { it.slice("competitor", "url", "sites") }})
       end
       found
     end

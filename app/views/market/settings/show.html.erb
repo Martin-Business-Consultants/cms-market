@@ -103,7 +103,7 @@
       <%= settings_field "Pull search data on its own" do %>
         <%= form.select :refresh, Market::Settings::REFRESH.invert, selected: @settings.refresh %>
       <% end %>
-      <%= settings_switch form, :backlinks, "Backlinks too", hint: "Needs DataForSEO's Backlinks subscription.", checked: @settings.backlinks? %>
+      <%= settings_switch form, :backlinks, "Backlinks too", hint: "Search › Links: each site's links over the year, links to win back, who links to the site and with what words, and where to get more. Needs DataForSEO's Backlinks subscription; about $0.05 a site each pull, and $0.15 a week for the detail on the site itself.", checked: @settings.backlinks? %>
     </section>
 
     <section class="panel panel--padded stack stack--xs">

@@ -121,6 +121,15 @@
       </tbody>
     </table>
   <% end %>
+<% elsif brief.kind == "links" then %>
+  <% links = brief.links %>
+  <% own = links.own_site %>
+  <dl class="market-facts text-small">
+    <dt>Linking sites</dt><dd><%= own&.figure("referring_domains") ? number_with_delimiter(own.figure("referring_domains")) : "—" %></dd>
+    <dt>Won · lost, <%= links.changes["days"] || 90 %> days</dt><dd><%= links.changes["won_count"].to_i %> · <%= links.changes["lost_count"].to_i %></dd>
+    <dt>Links to pages that are gone</dt><dd><%= pluralize(links.unfixed.sum { it["sites"].to_i }, "site") %>, <%= pluralize(links.unfixed.size, "page") %></dd>
+    <dt>Linking to competitors, not to it</dt><dd><%= number_with_delimiter links.gap["total"].to_i %></dd>
+  </dl>
 <% elsif brief.kind == "opportunity" then %>
   <div class="cluster cluster--sm"><%= market_impact_tag record %><%= market_effort_tag record %><span class="text-small text-muted"><%= record.channel_label %> · <%= record.horizon_label %></span></div>
   <% if record.detail.present? %><p class="market-text"><%= record.detail %></p><% end %>

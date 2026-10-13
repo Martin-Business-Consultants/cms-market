@@ -16,6 +16,7 @@ class Market::Goal < ApplicationRecord
     "search_position" => {label: "Place on Google for a search", unit: "position", lower: true, search: true, source: "Google, checked live"},
     "maps_top3" => {label: "Share of the area in the Maps top 3 for a search", unit: "%", search: true, source: "Google Maps, checked live"},
     "ai_named" => {label: "Share of AI answers that name the business", unit: "%", source: "AI answers, checked live"},
+    "linking_sites" => {label: "Sites linking to the site", unit: "sites", source: "DataForSEO Backlinks"},
     "reviews" => {label: "Google reviews", unit: "reviews", source: "Business Profile"},
     "rating" => {label: "Google rating", unit: "★", source: "Business Profile"}
   }.freeze

@@ -16,7 +16,8 @@
 class Market::SearchSnapshot < ApplicationRecord
   KINDS = %w[overview keywords competitors backlinks ai_overview business_profile web_mentions
     serp_competitors keyword_facts ai_mentions ai_answers site_health reviews backlink_history link_gap
-    content_ideas ai_topics ai_history rank_history relevant_pages gbp_qa gbp_posts trustpilot tripadvisor].freeze
+    content_ideas ai_topics ai_history rank_history relevant_pages gbp_qa gbp_posts trustpilot tripadvisor
+    referring_domains anchors link_changes broken_links linked_pages link_competitors].freeze
   FRESH_FOR = 20.hours
 
   belongs_to :competitor, optional: true

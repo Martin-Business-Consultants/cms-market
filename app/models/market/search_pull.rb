@@ -26,6 +26,7 @@ class Market::SearchPull < ApplicationRecord
   STATES = %w[queued running ready partial stopped failed].freeze
   STUCK_AFTER = 30.minutes
   MONTHLY = 25.days
+  WEEKLY = 6.days
 
   belongs_to :user, optional: true
   has_many :requests, class_name: "Market::SearchRequest", foreign_key: :pull_id, dependent: :nullify, inverse_of: :pull
@@ -55,7 +56,7 @@ class Market::SearchPull < ApplicationRecord
     sites = 1 + Market::Competitor.watchable.count
     keywords = Market::Keyword.count
     per_site = api[:overview] + api[:keywords] + api[:ai_overview] +
-      (settings.backlinks? ? api[:backlinks] + api[:backlink_history] : 0) +
+      (settings.backlinks? ? api[:backlinks] + api[:backlink_history] + api[:linked_pages] : 0) +
       (settings.extra?(:profiles) ? api[:business_profile] + api[:reviews] + api[:gbp_qa] + queued["gbp_posts"] : 0) +
       (settings.extra?(:other_reviews) ? queued["trustpilot"] + queued["tripadvisor"] : 0) +
       (settings.extra?(:web_mentions) ? api[:web_mentions] : 0) +
@@ -74,6 +75,7 @@ class Market::SearchPull < ApplicationRecord
     end
     extras = (settings.extra?(:keywords) ? api[:keyword_facts] + api[:ai_volume] + api[:serp_competitors] + api[:local_volume] + api[:content_ideas] : 0) +
       (settings.backlinks? && sites > 1 ? api[:link_gap] : 0) +
+      (settings.backlinks? ? api[:referring_domains] + api[:link_changes] + api[:broken_links] + api[:anchors] + api[:link_competitors] : 0) +
       (settings.extra?(:ai_visibility) ? 2 * (api[:ai_mentions] + api[:ai_answers]) + api[:ai_topics] + api[:ai_history] : 0) +
       (settings.extra?(:site_health) ? 2 * api[:site_health] : 0)
     rankings = keywords * (cheap ? queued["ranking"] : api[:ranking])
@@ -133,10 +135,7 @@ class Market::SearchPull < ApplicationRecord
       part(competitor, domain, "overview") { @api.overview(domain) }
       part(competitor, domain, "keywords") { @api.keywords(domain) }
       part(competitor, domain, "ai_overview") { @api.ai_overview_keywords(domain) }
-      if settings.backlinks?
-        part(competitor, domain, "backlinks") { @api.backlinks(domain) }
-        part(competitor, domain, "backlink_history") { @api.backlink_history(domain) }
-      end
+      links(competitor, domain) if settings.backlinks?
       part(competitor, domain, "web_mentions") { @api.web_mentions(competitor ? competitor.name : @profile.business_name) } if settings.extra?(:web_mentions)
       if settings.extra?(:history)
         part(competitor, domain, "rank_history", fresh_for: MONTHLY) { @api.rank_history(domain) }
@@ -147,6 +146,22 @@ class Market::SearchPull < ApplicationRecord
     @location = @profile.local_center || @profile.search_location.presence || settings.country
     settings.queue? ? queue_searches : live_searches
     market_extras(settings, sites)
+  end
+
+  # A site's links (DataForSEO Backlinks): its profile and its year, daily; its most-linked pages
+  # weekly; and for the site itself, weekly, who links to it, what's been won and lost, links to
+  # pages that are gone, the words they link with, and the sites with a link profile like its own.
+  def links(competitor, domain)
+    part(competitor, domain, "backlinks") { @api.backlinks(domain) }
+    part(competitor, domain, "backlink_history") { @api.backlink_history(domain) }
+    part(competitor, domain, "linked_pages", fresh_for: WEEKLY) { @api.linked_pages(domain) }
+    return if competitor
+
+    part(nil, domain, "referring_domains", fresh_for: WEEKLY) { @api.referring_domains(domain) }
+    part(nil, domain, "link_changes", fresh_for: WEEKLY) { @api.link_changes(domain) }
+    part(nil, domain, "broken_links", fresh_for: WEEKLY) { @api.broken_links(domain) }
+    part(nil, domain, "anchors", fresh_for: WEEKLY) { @api.anchors(domain) }
+    part(nil, domain, "link_competitors", fresh_for: WEEKLY) { @api.link_competitors(domain) }
   end
 
   # The location as a Ranking keeps it.

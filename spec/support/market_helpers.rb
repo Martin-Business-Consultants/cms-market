@@ -63,7 +63,38 @@ module MarketHelpers
     def overview(domain) = answer("overview:#{domain}") { {"organic_keywords" => @keywords.fetch(domain, []).size, "organic_traffic" => @traffic.fetch(domain, 100), "top_3" => 1, "top_10" => 4, "paid_keywords" => 0} }
     def keywords(domain) = answer("keywords:#{domain}") { {"total" => @keywords.fetch(domain, []).size, "keywords" => @keywords.fetch(domain, [])} }
     def competitors(domain) = answer("competitors:#{domain}") { {"competitors" => @competitors} }
-    def backlinks(domain) = answer("backlinks:#{domain}") { {"referring_domains" => 10} }
+    def backlinks(domain)
+      answer("backlinks:#{domain}") { {"referring_domains" => (domain == "acme.example") ? 10 : 80, "referring_domains_nofollow" => 2, "backlinks" => 300, "rank" => 30, "broken_backlinks" => 4} }
+    end
+
+    def referring_domains(domain)
+      answer("referring_domains:#{domain}") do
+        {"total" => 10, "sites" => [{"domain" => "springfieldnews.example", "rank" => 55, "links" => 3, "follow" => true, "first_seen" => 10.days.ago.to_date.iso8601},
+          *6.times.map { {"domain" => "spam#{it}.example", "rank" => 2, "links" => 40, "follow" => true, "spam" => 80} }]}
+      end
+    end
+
+    def anchors(domain)
+      answer("anchors:#{domain}") { {"total" => 4, "anchors" => [{"anchor" => "emergency plumber", "sites" => 8}, {"anchor" => "Acme Plumbing", "sites" => 3}, {"anchor" => "click here", "sites" => 2}, {"anchor" => "acme.example", "sites" => 1}]} }
+    end
+
+    def link_changes(domain)
+      answer("link_changes:#{domain}") do
+        {"days" => 90, "won" => [{"domain" => "springfieldnews.example", "url_from" => "https://springfieldnews.example/a", "rank" => 55, "follow" => true}],
+         "lost" => [{"domain" => "chamber.example", "url_from" => "https://chamber.example/members", "url_to" => "https://acme.example/", "rank" => 48, "follow" => true, "lost" => true}],
+         "won_count" => 1, "lost_count" => 1}
+      end
+    end
+
+    def broken_links(domain)
+      answer("broken_links:#{domain}") do
+        {"total" => 3, "pages" => [{"url" => "https://acme.example/old-services", "path" => "/old-services", "status" => 404, "sites" => 3, "best_rank" => 40,
+          "links" => [{"domain" => "springfieldnews.example", "url_from" => "https://springfieldnews.example/b", "rank" => 40, "follow" => true}]}]}
+      end
+    end
+
+    def linked_pages(domain) = answer("linked_pages:#{domain}") { {"pages" => [{"url" => "https://#{domain}/water-heater-guide", "sites" => (domain == "acme.example") ? 2 : 24, "links" => 60}]} }
+    def link_competitors(domain) = answer("link_competitors:#{domain}") { {"sites" => [{"domain" => "rival.example", "rank" => 30, "shared" => 12}, {"domain" => "drainkings.example", "rank" => 25, "shared" => 9}]} }
     def ranking(keyword, location:, ai_overview: false)
       answer("ranking:#{keyword}") do
         {"results" => @rankings.fetch(keyword, []), "features" => ["local_pack"], "location" => location, "questions" => ["How much does a plumber cost?"],
@@ -138,7 +169,7 @@ module MarketHelpers
     end
 
     def backlink_history(domain)
-      answer("backlink_history:#{domain}") { {"months" => 12.times.map { |index| {"date" => (11 - index).months.ago.to_date.iso8601, "referring_domains" => 100 - index * 3, "new_referring_domains" => 1, "lost_referring_domains" => 4, "rank" => 30} }} }
+      answer("backlink_history:#{domain}") { {"months" => 12.times.map { |index| {"date" => (11 - index).months.ago.to_date.iso8601, "referring_domains" => 100 - index * 3, "new_referring_domains" => (domain == "acme.example") ? 1 : 6, "lost_referring_domains" => 4, "rank" => 30} }} }
     end
 
     def link_gap(own, competitors) = answer("link_gap") { {"total" => 2, "sites" => [{"domain" => "springfieldchamber.example", "links_to" => competitors, "rank" => 55}]} }

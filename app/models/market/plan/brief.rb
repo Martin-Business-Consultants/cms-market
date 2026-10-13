@@ -13,12 +13,18 @@ class Market::Plan::Brief
   end
 
   def to_s
-    [business_part, goals_part, content_part, own_site_part, competitors_part, search_part, rankings_part, local_part, ai_part, findings_part, work_part].compact.join("\n\n")
+    [business_part, goals_part, content_part, own_site_part, competitors_part, search_part, rankings_part, local_part, links_part, ai_part, findings_part, work_part].compact.join("\n\n")
   end
 
   private
 
   attr_reader :profile, :competitors, :readings, :search
+
+  # The links (DataForSEO Backlinks), when they've been pulled.
+  def links_part
+    links = Market::Links.new(profile: profile)
+    links.facts if links.pulled?
+  end
 
   # The goals, with where each stands: every opportunity should serve one.
   def goals_part

@@ -15,7 +15,8 @@ module Market
                   ai_overview: 0.05, ai_mode: 0.01, llm_scraper: 0.01, llm_response: 0.08, ai_mentions: 0.25, ai_answers: 0.15,
                   keyword_facts: 0.15, ai_volume: 0.05, serp_competitors: 0.05, business_profile: 0.01, site_health: 0.02, web_mentions: 0.05,
                   reviews: 0.01, backlink_history: 0.05, link_gap: 0.07, local_volume: 0.1,
-                  content_ideas: 0.03, ai_topics: 0.25, ai_history: 0.12, rank_history: 0.15, relevant_pages: 0.02, gbp_qa: 0.01}.freeze
+                  content_ideas: 0.03, ai_topics: 0.25, ai_history: 0.12, rank_history: 0.15, relevant_pages: 0.02, gbp_qa: 0.01,
+                  referring_domains: 0.03, anchors: 0.03, link_changes: 0.03, broken_links: 0.04, linked_pages: 0.03, link_competitors: 0.03}.freeze
       # What a queued (Standard) check costs at most, for the budget: about a third of Live.
       QUEUED = {"reviews" => 0.01, "ranking" => 0.0015, "maps_point" => 0.0008, "ai_mode" => 0.0015, "llm_scraper" => 0.0015, "bing" => 0.0008,
                 "gbp_posts" => 0.004, "trustpilot" => 0.003, "tripadvisor" => 0.005}.freeze
@@ -24,6 +25,8 @@ module Market
                        "Germany" => "DE", "France" => "FR", "Spain" => "ES", "Italy" => "IT", "Netherlands" => "NL", "Mexico" => "MX", "Brazil" => "BR",
                        "India" => "IN", "South Africa" => "ZA"}.freeze
       RANKING_DEPTH = 30
+
+      include Links
 
       def initialize(client:, setting: Market::Settings.current)
         @client = client
@@ -71,12 +74,6 @@ module Market
             {"domain" => Market::Probe.normalize(item["domain"]), "shared_keywords" => item["intersections"].to_i, "average_position" => item["avg_position"]&.to_f&.round(1),
               "organic_traffic" => item.dig("full_domain_metrics", "organic", "etv").to_f.round, "organic_keywords" => item.dig("full_domain_metrics", "organic", "count").to_i}
           end}
-      end
-
-      # Links from elsewhere (Backlinks API, a separate DataForSEO subscription).
-      def backlinks(domain)
-        result = @client.post("backlinks/summary/live", {target: domain, include_subdomains: true}, target: domain, ceiling: CEILINGS[:backlinks]).first || {}
-        result.slice("rank", "backlinks", "referring_domains", "referring_main_domains", "broken_backlinks", "backlinks_spam_score").transform_values { it.is_a?(Numeric) ? it : it.to_i }
       end
 
       # Google's results for one keyword, searched from `location` (a DataForSEO location name,

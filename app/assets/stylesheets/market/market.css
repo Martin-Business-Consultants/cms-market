@@ -680,4 +680,20 @@
   .market-tab-note {
     margin-block-start: calc(var(--space-2) * -1);
   }
+
+  /* Search › Links: the words sites link with, a bar for each kind. */
+  .market-mix {
+    display: grid;
+    gap: var(--space-1);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .market-mix__row {
+    align-items: center;
+    display: grid;
+    gap: var(--space-2);
+    grid-template-columns: minmax(0, 12rem) minmax(0, 1fr) 3rem;
+  }
 }

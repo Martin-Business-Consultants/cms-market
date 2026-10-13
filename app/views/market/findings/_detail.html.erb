@@ -56,7 +56,8 @@
       <% elsif place == :competitors then %>
         <%= link_to "Competitors", market_competitors_path, class: "btn btn--sm", data: {turbo_frame: "_top"} %>
       <% else %>
-        <%= link_to "Search", market_search_path(tab: (record if record.is_a?(String))), class: "btn btn--sm", data: {turbo_frame: "_top"} %>
+        <% tab = record if record.is_a?(String) %>
+        <%= link_to (tab ? "Search › #{Market::SearchesController::TABS.dig(tab, 0)}" : "Search"), market_search_path(tab: tab), class: "btn btn--sm", data: {turbo_frame: "_top"} %>
       <% end %>
       <% if finding.state == "open" %>
         <%= button_to "Dismiss", market_finding_path(finding), method: :patch, params: {finding: {state: "dismissed"}, return_to: back}, class: "btn btn--sm btn--plain", form_class: "contents" %>

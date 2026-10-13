@@ -303,7 +303,7 @@ RSpec.describe "Market", type: :request do
 
       get market_search_path(tab: "reputation")
       expect(response.body).to include("Reviews", "fair prices", "slow callbacks", "Call back within the hour.", "Not answered yet", "Answer it", "on their way")
-      get market_search_path(tab: "website")
+      get market_search_path(tab: "links")
       expect(response.body).to include("Links", "springfieldchamber.example", "Linking to competitors, not to the site")
       get market_search_path
       expect(response.body).to include("Here", "90")
@@ -353,6 +353,47 @@ RSpec.describe "Market", type: :request do
       expect(response.parsed_body["setup"].map { it["key"] }).to include("goals", "competitors")
       get "/api/market/goals", headers: api_headers(admin)
       expect(response.parsed_body["metrics"].keys).to include("calls", "maps_top3")
+    end
+
+    it "shows the site's links, wins back a broken one with a redirect, and gives agents the lot" do
+      Market::Settings.update("backlinks" => "1")
+      Market::Keyword.track("emergency plumber")
+      snap = ->(kind, data, competitor: nil) { Market::SearchSnapshot.create!(competitor: competitor, domain: competitor&.domain || "acme.example", kind: kind, taken_at: Time.current, data: data) }
+      helper = MarketHelpers::FakeApi.new
+      snap.call("backlinks", helper.backlinks("acme.example"))
+      snap.call("backlinks", helper.backlinks("rival.example"), competitor: rival)
+      snap.call("backlink_history", helper.backlink_history("acme.example"))
+      snap.call("referring_domains", helper.referring_domains("acme.example"))
+      snap.call("link_changes", helper.link_changes("acme.example"))
+      snap.call("broken_links", helper.broken_links("acme.example"))
+      snap.call("anchors", helper.anchors("acme.example"))
+      snap.call("linked_pages", helper.linked_pages("rival.example"), competitor: rival)
+      snap.call("link_competitors", helper.link_competitors("acme.example"))
+      services = Page.create!(slug: "services", title: "Services", status: "published", locale: "en")
+
+      get market_search_path(tab: "links")
+      expect(response.body).to include("Win back: pages that are gone", "/old-services", "Redirect it to…", "Good links lost", "chamber.example",
+        "Who links to Acme Plumbing", "springfieldnews.example", "Spammy", "The words they link with", "A search it wants to win",
+        "What earns competitors links", "water-heater-guide", "drainkings.example", "Watch")
+
+      post market_link_redirects_path, params: {path: "/old-services", to: "/services", return_to: market_search_path(tab: "links")}
+      expect(response).to redirect_to(market_search_path(tab: "links"))
+      expect(Redirect.find_by!(source_path: "/old-services")).to have_attributes(destination_url: "/services", status_code: 301)
+      post market_link_redirects_path, params: {path: "/old-services", to: "/services"}
+      expect(flash[:alert]).to include("redirected already")
+      get market_search_path(tab: "links")
+      expect(response.body).to include("Redirects to /services")
+
+      author = create(:user, admin: false, role: create(:role, permissions: %w[market:read market:write]))
+      sign_in_as author
+      post market_link_redirects_path, params: {path: "/gone", to: "/#{services.path}"}
+      expect(flash[:alert]).to include("Redirects › write")
+
+      get "/api/market/links", headers: api_headers(admin)
+      body = response.parsed_body
+      expect(body["broken"].first).to include("path" => "/old-services", "redirect" => "/services")
+      expect(body["anchor_mix"]).to include("keyword" => 57)
+      expect(body["sites"].map { it["domain"] }).to eq(["acme.example", "rival.example"])
     end
 
     it "keeps secrets out of Settings › Market" do

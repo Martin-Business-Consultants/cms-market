@@ -1,38 +1,209 @@
-<%# locals: (data:) %>
-<%# Links (DataForSEO Backlinks): each site's linking sites a year ago and now, with the last three months' new and lost; and the sites linking to competitors but not the site, the places to get a link. %>
-<% sites = data.sites.select(&:backlink_history) %>
-<% gap = data.market("link_gap")&.data %>
-<% if sites.any? || gap %>
-  <section class="panel panel--padded stack stack--sm" id="links">
-    <div class="row row--between">
-      <h2 class="heading">Links <%= market_source :backlinks %></h2>
-      <span class="text-small text-muted">Other sites linking in: what search engines, and AI, count as trust</span>
-    </div>
-    <% if sites.any? %>
-      <table class="data-table market-evidence-table">
-        <thead><tr><th>Site</th><th class="data-table__num">Linking sites</th><th class="data-table__num">A year ago</th><th class="data-table__num">New, 3 months</th><th class="data-table__num">Lost, 3 months</th><th class="data-table__num">Rank</th></tr></thead>
-        <tbody>
-          <% sites.each do |site| %>
-            <%# herb:key site.domain %>
-            <% months = Array(site.backlink_history.data["months"]) %>
-            <% last = months.last || {} %>
-            <% recent = months.last(3) %>
-            <tr class="<%= class_names("market-compare__own": site.own?) %>">
-              <td><strong><%= site.name %></strong></td>
-              <td class="data-table__num"><%= market_change last["referring_domains"], months.first&.dig("referring_domains") %></td>
-              <td class="data-table__num"><%= number_with_delimiter months.first&.dig("referring_domains").to_i %></td>
-              <td class="data-table__num"><%= number_with_delimiter recent.sum { it["new_referring_domains"].to_i } %></td>
-              <td class="data-table__num"><%= number_with_delimiter recent.sum { it["lost_referring_domains"].to_i } %></td>
-              <td class="data-table__num"><%= last["rank"] || "—" %></td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
+<%# locals: (links:, settings:, can_write:) %>
+<%# Search › Links (DataForSEO Backlinks): each site's links side by side and over the year; then, in the order worth doing them, winning back links to pages that are gone (a redirect in a click) and good links lost; who links to the site and with what words; and where to get more: the sites linking to competitors, the competitors' pages that earn links, and the sites with links like the site's. %>
+<% can_redirect = can_write && Current.user.can?("redirects:write") %>
+<% back = market_search_path(tab: "links") %>
+<section class="panel panel--padded stack stack--sm" id="links">
+  <div class="row row--between">
+    <h2 class="heading">Links <%= market_source :backlinks %></h2>
+    <span class="text-small text-muted"><%= links.taken_at ? "Checked #{time_ago_in_words(links.taken_at)} ago" : "Not checked yet" %></span>
+  </div>
+  <p class="text-small text-muted">Other sites linking to the site are much of what Google, and AI answers, count as trust. Win back what's broken or lost first (it's quickest), then go after the sites already linking to competitors.</p>
+  <% if !links.pulled? %>
+    <p class="text-small text-muted">
+      <% if settings.backlinks? %>The next search pull brings them.<% else %>Links come from DataForSEO's Backlinks subscription: switch on Backlinks too in <%= Current.user.can?("settings:read") ? link_to("Settings › Market", settings_market_path, class: "link") : "Settings › Market" %>.<% end %>
+    </p>
+  <% else %>
+    <table class="data-table market-evidence-table">
+      <thead>
+        <tr><th>Site</th><th class="data-table__num">Linking sites</th><th class="data-table__num">A year ago</th><th class="data-table__num">New, 3 months</th><th class="data-table__num">Lost, 3 months</th>
+          <th class="data-table__num">Followed</th><th class="data-table__num">Links</th><th class="data-table__num">Broken</th><th class="data-table__num">Rank</th></tr>
+      </thead>
+      <tbody>
+        <% links.sites.each do |site| %>
+          <%# herb:key site.domain %>
+          <% first = site.months.first&.dig("referring_domains") %>
+          <% now = site.months.last&.dig("referring_domains") || site.figure("referring_domains") %>
+          <tr class="<%= class_names("market-compare__own": site.own?) %>">
+            <td><strong><%= site.name %></strong><div class="text-small text-muted"><%= site.domain %></div></td>
+            <td class="data-table__num"><%= market_change now, first %></td>
+            <td class="data-table__num"><%= first ? number_with_delimiter(first) : "—" %></td>
+            <td class="data-table__num"><%= site.months.any? ? number_with_delimiter(site.recent("new_referring_domains")) : "—" %></td>
+            <td class="data-table__num"><%= site.months.any? ? number_with_delimiter(site.recent("lost_referring_domains")) : "—" %></td>
+            <td class="data-table__num"><%= site.follow_share ? "#{site.follow_share}%" : "—" %></td>
+            <td class="data-table__num"><%= site.summary ? number_with_delimiter(site.figure("backlinks")) : "—" %></td>
+            <td class="data-table__num"><%= site.summary ? number_with_delimiter(site.figure("broken_backlinks")) : "—" %></td>
+            <td class="data-table__num"><%= site.figure("rank") || site.months.last&.dig("rank") || "—" %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+    <% charted = links.sites.select { it.months.size > 1 } %>
+    <% if charted.any? %>
+      <div class="stack stack--xs">
+        <h3 class="label">Linking sites, the past year</h3>
+        <%= market_line_chart charted.map { |site| Market::Report::Series.new(name: site.name, own: site.own?, points: site.months.map { [Date.parse(it["date"]).to_time, it["referring_domains"].to_f] }) },
+              label: "Sites linking to each, by month" %>
+      </div>
     <% end %>
-    <% if gap && Array(gap["sites"]).any? %>
+    <% if can_write && Market::Plan.ai_available? %>
+      <div class="cluster cluster--sm">
+        <%= link_to market_search_path(tab: "links", sheet: "links:own"), class: "btn btn--sm", data: {turbo_frame: "market_sheet"} do %><%= icon_tag "ai" %> <span>Plan the outreach with AI</span><% end %>
+        <span class="text-small text-muted">Who to ask for a link and what to ask, and posts worth linking to.</span>
+      </div>
+    <% end %>
+  <% end %>
+</section>
+
+<% if links.pulled? %>
+  <div class="grid grid--2 market-split">
+    <section class="panel panel--padded stack stack--sm" id="broken" aria-label="Links to pages that are gone">
+      <div class="row row--between">
+        <h2 class="heading">Win back: pages that are gone</h2>
+        <span class="text-small text-muted"><%= links.unfixed.size %> to fix</span>
+      </div>
+      <p class="text-small text-muted">Sites link to these addresses, which now answer an error, so the links count for nothing. Redirect each to the page that replaced it.</p>
+      <% if links.broken.any? %>
+        <ul class="divided">
+          <% links.broken.first(15).each do |row| %>
+            <%# herb:key row["url"] %>
+            <li class="stack stack--xs market-row">
+              <span class="row row--between">
+                <span class="text-mono text-small"><%= row["path"] %></span>
+                <span class="text-small text-muted"><%= pluralize(row["sites"], "site") %> · best rank <%= row["best_rank"] %><%= " · #{row["status"]}" if row["status"] %></span>
+              </span>
+              <span class="text-small text-muted">From <%= Array(row["links"]).first(3).map { it["domain"] }.join(", ") %></span>
+              <% if row["redirect"] %>
+                <span class="text-small"><span class="badge badge--success">Fixed</span> Redirects to <%= row["redirect"] %></span>
+              <% elsif row["page"] then %>
+                <span class="text-small"><span class="badge badge--success">Fixed</span> A page is there now</span>
+              <% elsif can_redirect then %>
+                <%= form_with url: market_link_redirects_path, method: :post, class: "cluster cluster--sm" do %>
+                  <%= hidden_field_tag :path, row["path"], id: nil %>
+                  <%= hidden_field_tag :return_to, back, id: nil %>
+                  <%= select_tag :to, options_for_select(links.redirect_choices), include_blank: "Redirect it to…", id: nil, required: true, aria: {label: "The page to send #{row["path"]} to"} %>
+                  <button type="submit" class="btn btn--sm btn--primary">Redirect</button>
+                <% end %>
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+      <% else %>
+        <p class="empty-state">None: every page other sites link to answers.</p>
+      <% end %>
+    </section>
+
+    <section class="panel panel--padded stack stack--sm" aria-label="Links won and lost">
+      <div class="row row--between">
+        <h2 class="heading">Won and lost, <%= links.changes["days"] || 90 %> days</h2>
+        <span class="text-small text-muted"><%= links.changes["won_count"].to_i %> won · <%= links.changes["lost_count"].to_i %> lost</span>
+      </div>
+      <% if links.valuable_lost.any? %>
+        <div class="stack stack--xs">
+          <h3 class="label">Good links lost: ask for them back</h3>
+          <ul class="divided">
+            <% links.valuable_lost.first(8).each do |row| %>
+              <%# herb:key row["url_from"] %>
+              <li class="row row--between market-row text-small">
+                <span class="grow"><%= link_to row["domain"], row["url_from"], class: "link", target: "_blank", rel: "noopener" %><span class="text-muted"> → <%= row["url_to"].to_s.sub(%r{\Ahttps?://[^/]+}, "").presence || "/" %></span></span>
+                <span class="text-muted">rank <%= row["rank"] %></span>
+              </li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+      <% if links.won.any? %>
+        <div class="stack stack--xs">
+          <h3 class="label">Won</h3>
+          <ul class="divided">
+            <% links.won.first(8).each do |row| %>
+              <%# herb:key row["url_from"] %>
+              <li class="row row--between market-row text-small">
+                <span class="grow"><%= link_to row["domain"], row["url_from"], class: "link", target: "_blank", rel: "noopener" %><%= tag.span(" · nofollow", class: "text-muted") unless row["follow"] %></span>
+                <span class="text-muted">rank <%= row["rank"] %></span>
+              </li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+      <% if links.won.empty? && links.lost.empty? %>
+        <p class="empty-state"><%= links.changes.any? ? "No links won or lost lately." : "Not checked yet." %></p>
+      <% end %>
+    </section>
+  </div>
+
+  <div class="grid grid--2 market-split">
+    <section class="panel panel--padded stack stack--sm" aria-label="Who links to the site">
+      <div class="row row--between">
+        <h2 class="heading">Who links to <%= links.profile.business_name %></h2>
+        <span class="text-small text-muted"><%= number_with_delimiter links.referring_total %> sites, the best first</span>
+      </div>
+      <% if links.referring.any? %>
+        <table class="data-table market-evidence-table">
+          <thead><tr><th>Site</th><th class="data-table__num">Rank</th><th class="data-table__num">Links</th><th>Since</th></tr></thead>
+          <tbody>
+            <% links.referring.first(20).each do |row| %>
+              <%# herb:key row["domain"] %>
+              <tr>
+                <td>
+                  <%= link_to row["domain"], "https://#{row["domain"]}", class: "link", target: "_blank", rel: "noopener" %>
+                  <% if !row["follow"] %><span class="badge">Nofollow</span><% end %>
+                  <% if row["spam"].to_i >= Market::Links::SPAMMY %><span class="badge badge--warning">Spammy</span><% end %>
+                </td>
+                <td class="data-table__num"><%= row["rank"] %></td>
+                <td class="data-table__num"><%= number_with_delimiter row["links"] %></td>
+                <td class="text-small text-muted"><%= row["first_seen"] ? l(Date.parse(row["first_seen"]), format: :short) : "—" %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      <% else %>
+        <p class="empty-state">Not checked yet.</p>
+      <% end %>
+    </section>
+
+    <section class="panel panel--padded stack stack--sm" aria-label="The words they link with">
+      <div class="row row--between">
+        <h2 class="heading">The words they link with</h2>
+        <span class="text-small text-muted">Share of linking sites</span>
+      </div>
+      <% mix = links.anchor_mix %>
+      <% if mix.any? %>
+        <p class="text-small text-muted">Natural links mostly use the business's name or address. Many using a search it wants to win can look bought.</p>
+        <ul class="market-mix">
+          <% mix.each do |kind, share| %>
+            <%# herb:key kind %>
+            <li class="market-mix__row text-small">
+              <span><%= Market::Links::ANCHOR_KINDS[kind] %></span>
+              <%= market_meter share, label: "#{share}%" %>
+              <span class="data-table__num"><%= share %>%</span>
+            </li>
+          <% end %>
+        </ul>
+        <h3 class="label">Most used</h3>
+        <ul class="divided">
+          <% links.anchors.first(10).each do |row| %>
+            <%# herb:key row["anchor"] %>
+            <li class="row row--between market-row text-small">
+              <span class="grow"><%= row["anchor"].presence || tag.span("(an image)", class: "text-muted") %></span>
+              <span class="text-muted"><%= Market::Links::ANCHOR_KINDS[row["kind"]] %> · <%= pluralize(row["sites"], "site") %></span>
+            </li>
+          <% end %>
+        </ul>
+      <% else %>
+        <p class="empty-state">Not checked yet.</p>
+      <% end %>
+    </section>
+  </div>
+
+  <section class="panel panel--padded stack stack--md" aria-label="Where to get links">
+    <div class="stack stack--xs">
+      <h2 class="heading">Where to get links</h2>
+      <p class="text-small text-muted">The likeliest sites to link to the business are those already linking to its competitors; the likeliest pages to earn links are like the ones that earn theirs.</p>
+    </div>
+    <% gap = links.gap %>
+    <% if Array(gap["sites"]).any? %>
       <div class="stack stack--xs">
         <h3 class="label">Linking to competitors, not to the site (<%= number_with_delimiter gap["total"] %>)</h3>
-        <p class="text-small text-muted">Directories, associations, local press and partners that link to competitors: the likeliest to link to the business too.</p>
         <table class="data-table market-evidence-table">
           <thead><tr><th>Site</th><th>Links to</th><th class="data-table__num">Rank</th></tr></thead>
           <tbody>
@@ -43,6 +214,44 @@
           </tbody>
         </table>
       </div>
+    <% end %>
+    <% assets = links.linkable_pages.select { |_, pages| pages.any? } %>
+    <% if assets.any? %>
+      <div class="stack stack--xs">
+        <h3 class="label">What earns competitors links</h3>
+        <table class="data-table market-evidence-table">
+          <thead><tr><th>Page</th><th class="data-table__num">Linking sites</th></tr></thead>
+          <tbody>
+            <% assets.each do |site, pages| %>
+              <% pages.each do |row| %>
+                <%# herb:key row["url"] %>
+                <tr><td><%= link_to row["url"].to_s.sub(%r{\Ahttps?://}, "").truncate(80), row["url"], class: "link", target: "_blank", rel: "noopener" %><div class="text-small text-muted"><%= site.name %></div></td>
+                  <td class="data-table__num"><%= number_with_delimiter row["sites"] %></td></tr>
+              <% end %>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+    <% rivals = links.link_rivals %>
+    <% if rivals.any? %>
+      <div class="stack stack--xs">
+        <h3 class="label">Sites with links like the site's, not watched</h3>
+        <ul class="divided">
+          <% rivals.first(8).each do |row| %>
+            <%# herb:key row["domain"] %>
+            <li class="row row--between market-row text-small">
+              <span class="grow"><%= link_to row["domain"], "https://#{row["domain"]}", class: "link", target: "_blank", rel: "noopener" %><span class="text-muted"> · <%= pluralize(row["shared"], "linking site") %> in common · rank <%= row["rank"] %></span></span>
+              <% if can_write %>
+                <%= button_to "Watch", market_competitors_path, params: {competitor: {name: row["domain"], website: "https://#{row["domain"]}", kind: "direct", threat: "medium"}}, class: "btn btn--sm btn--plain", form_class: "contents" %>
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+    <% if Array(gap["sites"]).empty? && assets.empty? && rivals.empty? %>
+      <p class="empty-state">Watch a competitor or two and pull again: where their links come from shows here.</p>
     <% end %>
   </section>
 <% end %>

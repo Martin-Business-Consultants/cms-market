@@ -27,8 +27,9 @@
     <%= render "market/searches/ai", data: @data, settings: @settings %>
   <% elsif @tab == "website" then %>
     <%= render "market/searches/visibility", data: @data, settings: @settings, pull: pull %>
-    <%= render "market/searches/links", data: @data %>
     <%= render "market/searches/site", data: @data %>
+  <% elsif @tab == "links" then %>
+    <%= render "market/searches/links", links: @links, settings: @settings, can_write: can_write %>
   <% else %>
     <%= render "market/searches/reviews", data: @data %>
     <%= render "market/searches/profiles", data: @data %>

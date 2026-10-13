@@ -1,5 +1,5 @@
 <%# locals: (current:) %>
-<%# Search's tabs: the searches customers make (Google), how AI answers them, Maps across the area, the website itself, and what customers say. Maps is a screen of its own, shown as a tab here. %>
+<%# Search's tabs: the searches customers make (Google), how AI answers them, Maps across the area, the website itself, its links, and what customers say. Maps is a screen of its own, shown as a tab here. %>
 <% tabs = Market::SearchesController::TABS %>
 <nav class="market-tabs market-tabs--page" aria-label="Search">
   <% tabs.each do |key, (label, _)| %>

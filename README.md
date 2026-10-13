@@ -102,8 +102,22 @@ the business, reviews and rating. Each keeps where it started, and says whether 
   getting reviews faster, and recurring complaints.
 - **Searches a month in the business's city** (keyword facts): Google Ads' volume and cost per click for
   each tracked search where the business is, its city found once in Google Ads' locations from the profile.
-- **Links** (Backlinks too): each site's linking sites month by month for a year (new and lost), charted on
-  the report, and the sites linking to competitors but not to the site: the places to get a link.
+- **Links** (Search › Links; Settings › Market › Backlinks too, DataForSEO's Backlinks subscription): each
+  site's linking sites over the year, new and lost, followed share, links to missing pages and rank; then,
+  in the order worth doing them:
+  - **win back** links to pages that no longer answer: each old address with the sites linking to it, and
+    a **redirect in one click** to the page that replaced it (a 301 in Tools › Redirects; it takes
+    `redirects:write`); and good links lost in the last 90 days, to ask for back;
+  - **who links** to the site, best first (followed or not, spammy-looking), and **the words** they link
+    with: the business's name, its address, "click here", a search it wants to win, or other;
+  - **where to get more**: the sites linking to competitors but not to the site, the competitors' pages that
+    earn the most links, and sites with a link profile like the site's (watch them in a click).
+
+  Findings flag links to missing pages, good links lost, a competitor winning links faster, too many
+  exact-match anchors (or too few by name), spammy linking sites (with when disavowing is worth it), the
+  link gap and pages that earn competitors links. **Plan the outreach with AI** turns it into tasks (who to
+  ask, what to ask for) and posts worth linking to. A goal can be **sites linking to the site**. The profile
+  and year are pulled each time; the detail on the site's own links weekly.
 - **Local search** works from a ZIP (or postcode) and a radius in miles (Market › Profile), not the whole
   country. On every pull, each tracked search is checked on Google Maps from a grid of points across the
   area (3×3, 5×5 or 7×7). **Search › Local** lists the searches beside the open one: its grid laid on a map of the area (OpenStreetMap), with the business's
@@ -152,6 +166,7 @@ the business, reviews and rating. Each keeps where it started, and says whether 
 Everything is at `/api/market/…`, listed in `/api/manifest`, so the `cms` CLI reaches it:
 
     cms get /api/market                                         # at a glance: goals, do_next, setup, findings by severity, best opportunities, changes
+    cms get /api/market/links                                   # profiles, who links in, won and lost, broken (and if redirected), anchors, link gap
     cms get /api/market/goals                                   # the goals with progress and pace, and the metrics there are
     cms post /api/market/goals '{"goal":{"metric":"calls","target":40,"due_on":"2027-01-31"}}'
     cms get "/api/market/findings?since=2026-10-13T09:00:00Z"   # only what appeared, changed, resolved or was dismissed since
