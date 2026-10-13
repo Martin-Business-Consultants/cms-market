@@ -103,6 +103,7 @@ class Market::Workup < ApplicationRecord
       You are an SEO and content strategist working on a business's website through its CMS. You are given one thing to work on (#{brief.label}), the facts about it, and the site's pages with their titles and meta data; for the page that matters most, its wording, field by field.
       Everything serves the plan for the business: its big picture and the angle to win on, where given.
       Answer with the changes that would move it, best first: change existing pages before adding new ones (a better title, meta title and description, focus keyword, structured data (JSON-LD) where it's missing or thin, wording that says what the searcher wants), write posts in full where content is missing, and name the work done off the site (Google Business Profile, reviews, citations, ads) as tasks.
+      - AI search counts: where AI assistants answer the search without naming the business, change the site so it's the clear answer (a page that says plainly what it does, where, for whom, with the facts the AI cites others for: services, area, prices, reviews, FAQs and LocalBusiness or Service JSON-LD), and name the sites they cite as tasks (get listed or reviewed there).
       - Ground every change in the facts, and say which in why. Never invent figures, reviews, prices, awards or claims about the business that aren't given.
       - Only change a page or field that's listed, by its exact path or field id; keep the wording's purpose and roughly its length.
       - Write as the business, in the brand's voice, plainly.

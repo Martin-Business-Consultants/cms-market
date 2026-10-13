@@ -6,7 +6,12 @@
 # them on; where everyone ranks for the tracked searches, from where the
 # business's customers search (the profile's ZIP when it has one); and, with
 # a ZIP and radius, each tracked search on Google Maps from every point of a
-# grid across the area (Market::LocalScan).
+# grid across the area (Market::LocalScan). AI search: each tracked search
+# asked of the AIs chosen in Settings › Market (Market::AiCheck: Google's AI
+# Overview with the results page, AI Mode, ChatGPT, Gemini, Perplexity,
+# Claude), and the AI share of voice from DataForSEO's database of real AI
+# answers. And the extras chosen there: keyword facts, who wins the tracked
+# searches, Business Profiles, site health, web mentions.
 #
 # Each part stands alone: one that fails is noted and the rest carry on. A
 # part pulled in the last FRESH_FOR isn't paid for twice unless the pull is
@@ -41,10 +46,17 @@ class Market::SearchPull < ApplicationRecord
   def self.ceiling(settings: Market::Settings.current)
     api = Market::Search::Api::CEILINGS
     sites = 1 + Market::Competitor.watchable.count
-    per_site = api[:overview] + api[:keywords] + (settings.backlinks? ? api[:backlinks] : 0)
+    keywords = Market::Keyword.count
+    per_site = api[:overview] + api[:keywords] + api[:ai_overview] + (settings.backlinks? ? api[:backlinks] : 0) +
+      (settings.extra?(:business_profiles) ? api[:business_profile] : 0) + (settings.extra?(:web_mentions) ? api[:web_mentions] : 0)
     profile = Market::Profile.current
-    local = profile.local? ? Market::Keyword.count * profile.local_grid**2 * api[:maps] : 0
-    (sites * per_site + api[:competitors] + Market::Keyword.count * api[:ranking] + local).round(2)
+    local = profile.local? ? keywords * profile.local_grid**2 * api[:maps] : 0
+    ai = keywords * settings.ai_platforms.sum do |platform|
+      {"google_ai_overview" => 0.005, "google_ai_mode" => api[:ai_mode], "chat_gpt" => api[:llm_scraper], "gemini" => api[:llm_scraper]}.fetch(platform, api[:llm_response])
+    end
+    extras = (settings.extra?(:keyword_facts) ? api[:keyword_facts] + api[:ai_volume] + api[:serp_competitors] : 0) +
+      (settings.extra?(:ai_mentions) ? 2 * (api[:ai_mentions] + api[:ai_answers]) : 0) + (settings.extra?(:site_health) ? 2 * api[:site_health] : 0)
+    (sites * per_site + api[:competitors] + keywords * api[:ranking] + local + ai + extras).round(2)
   end
 
   def working? = state.in?(%w[queued running]) && updated_at > STUCK_AFTER.ago
@@ -71,15 +83,112 @@ class Market::SearchPull < ApplicationRecord
   private
 
   def gather(settings)
+    @settings = settings
     sites = [[nil, @profile.domain], *Market::Competitor.watchable.ordered.map { [it, it.domain] }]
     sites.each do |competitor, domain|
       part(competitor, domain, "overview") { @api.overview(domain) }
       part(competitor, domain, "keywords") { @api.keywords(domain) }
+      part(competitor, domain, "ai_overview") { @api.ai_overview_keywords(domain) }
       part(competitor, domain, "backlinks") { @api.backlinks(domain) } if settings.backlinks?
+      part(competitor, domain, "web_mentions") { @api.web_mentions(competitor ? competitor.name : @profile.business_name) } if settings.extra?(:web_mentions)
     end
     part(nil, @profile.domain, "competitors") { @api.competitors(@profile.domain) }
-    rankings(@profile.local_center || @profile.search_location.presence || settings.country)
+    location = @profile.local_center || @profile.search_location.presence || settings.country
+    rankings(location)
+    ai_checks(location)
     local_scans if @profile.local?
+    market_extras(settings, sites)
+  end
+
+  # Keyword facts, who wins the tracked searches, AI share of voice and what AI says, site
+  # health, and each Business Profile (found by the Maps id the local scans saw).
+  def market_extras(settings, sites)
+    words = Market::Keyword.ordered.pluck(:keyword)
+    if settings.extra?(:keyword_facts) && words.any?
+      part(nil, @profile.domain, "keyword_facts") do
+        facts = @api.keyword_facts(words)
+        volumes = begin
+          @api.ai_volume(words)
+        rescue Market::Search::Client::Error => error
+          raise if Market::Search::Client.stopping?(error)
+
+          note "Couldn't get AI search volumes: #{error.message}"
+          {}
+        end
+        {"keywords" => words.to_h { [it, facts.fetch(it, {}).merge("ai_volume" => volumes[it]).compact] }}
+      end
+      part(nil, @profile.domain, "serp_competitors") { @api.serp_competitors(words) }
+    end
+    if settings.extra?(:ai_mentions)
+      keys = sites.to_h { |competitor, domain| [competitor ? "competitor:#{competitor.id}" : "site", domain] }.first(10).to_h
+      platforms = (settings.country == "United States" && settings.language_code == "en") ? %w[google chat_gpt] : %w[google]
+      if keys.size >= 2
+        part(nil, @profile.domain, "ai_mentions") { platforms.to_h { [it, @api.ai_mentions(keys, platform: it)] } }
+      else
+        note "AI share of voice compares the site with its competitors: add one to see it"
+      end
+      part(nil, @profile.domain, "ai_answers") { {"answers" => platforms.flat_map { @api.ai_answers(@profile.domain, platform: it) }} }
+    end
+    part(nil, @profile.domain, "site_health") { @api.site_health(@profile.website.presence || "https://#{@profile.domain}") } if settings.extra?(:site_health)
+    business_profiles(sites) if settings.extra?(:business_profiles)
+  end
+
+  def business_profiles(sites)
+    scans = Market::LocalScan.latest_for(Market::Keyword.all).values.filter_map(&:first)
+    own = scans.filter_map(&:own_cid).first
+    leaders = scans.flat_map(&:leaders)
+    sites.each do |competitor, domain|
+      cid = competitor ? leaders.find { |row| row["cid"] && (row["title"].to_s.casecmp?(competitor.name) || (row["domain"] && Market::Probe.normalize(row["domain"]) == domain)) }&.dig("cid") : own
+      next note("Business Profile for #{competitor ? competitor.name : @profile.business_name}: not found on Maps yet") unless cid
+
+      part(competitor, domain, "business_profile") { @api.business_profile(cid) }
+    end
+  end
+
+  # Each tracked search asked of each AI chosen (Google's AI Overview comes with the results
+  # page, in #rankings); one asked in the last day is kept unless the pull is forced.
+  def ai_checks(location)
+    platforms = @settings.ai_platforms - ["google_ai_overview"]
+    return if platforms.empty?
+
+    brands = Market::AiCheck::Brands.new(profile: @profile)
+    models = {}
+    Market::Keyword.ordered.each do |keyword|
+      platforms.each do |platform|
+        if !force && Market::AiCheck.where(keyword: keyword, platform: platform, checked_at: Market::SearchSnapshot::FRESH_FOR.ago..).exists?
+          next
+        end
+
+        answer = case platform
+        when "google_ai_mode" then @api.ai_mode(keyword.keyword, location: location)
+        when "chat_gpt", "gemini" then @api.llm_scraper(platform, keyword.keyword)
+        else
+          models[platform] ||= model_for(platform)
+          @api.llm_response(platform, ai_prompt(keyword), model: models[platform], city: @profile.search_location.to_s.split(",").first.presence)
+        end
+        Market::AiCheck.from_answer(keyword: keyword, platform: platform, text: answer["text"], sources: answer["sources"], businesses: answer["businesses"],
+          model: answer["model"], prompt: platform.in?(%w[perplexity claude]) ? ai_prompt(keyword) : keyword.keyword, pull: self, brands: brands).save!
+      rescue Market::Search::Client::Error => error
+        raise if Market::Search::Client.stopping?(error)
+
+        Market::AiCheck.unanswered(keyword: keyword, platform: platform, pull: self, error: error.message.truncate(300)).save!
+        note "Couldn't ask #{Market::AiCheck.platform_name(platform)} “#{keyword.keyword}”: #{error.message}"
+      end
+    end
+  end
+
+  # How a customer would ask an assistant: the search, as a request for businesses.
+  def ai_prompt(keyword) = "#{keyword.keyword} — which businesses would you recommend, and why?"
+
+  # The platform's model to ask: one that searches the web, Claude's Sonnet or Perplexity's Sonar first.
+  def model_for(platform)
+    wanted = (platform == "claude") ? /sonnet/ : /\Asonar\z|\Asonar-pro/
+    models = @api.models(platform)
+    choice = models.find { it["model_name"].to_s.match?(wanted) && (platform == "perplexity" || it["web_search_supported"]) } ||
+      models.find { platform == "perplexity" || it["web_search_supported"] }
+    choice&.dig("model_name") || ((platform == "claude") ? "claude-sonnet-4-5" : "sonar")
+  rescue Market::Search::Client::Error
+    (platform == "claude") ? "claude-sonnet-4-5" : "sonar"
   end
 
   # Each tracked search on Google Maps from every point of the grid; a point
@@ -122,12 +231,22 @@ class Market::SearchPull < ApplicationRecord
   end
 
   def rankings(location)
+    overview = @settings&.ai_platform?("google_ai_overview")
+    brands = Market::AiCheck::Brands.new(profile: @profile) if overview
     Market::Keyword.ordered.each do |keyword|
-      answer = @api.ranking(keyword.keyword, location: location)
-      ranking = keyword.rankings.new(pull: self, location: location.is_a?(Array) ? "#{@profile.local_zip} (#{location.join(",")})" : location, results: answer["results"], features: answer["features"], checked_at: Time.current)
+      answer = @api.ranking(keyword.keyword, location: location, ai_overview: overview)
+      ranking = keyword.rankings.new(pull: self, location: location.is_a?(Array) ? "#{@profile.local_zip} (#{location.join(",")})" : location, results: answer["results"],
+        features: answer["features"], local_pack: answer["local_pack"], questions: answer["questions"], checked_at: Time.current)
       ranking.position = ranking.position_of(@profile.domain)
       ranking.url = ranking.results.find { it["position"] == ranking.position }&.dig("url")
       ranking.save!
+      if overview
+        found = answer["ai_overview"]
+        check = found ? Market::AiCheck.from_answer(keyword: keyword, platform: "google_ai_overview", text: found["text"], sources: found["sources"], pull: self, brands: brands,
+          prompt: keyword.keyword) : Market::AiCheck.unanswered(keyword: keyword, platform: "google_ai_overview", pull: self)
+        check.answered = true if found
+        check.save!
+      end
     rescue Market::Search::Client::Error => error
       raise if Market::Search::Client.stopping?(error)
 

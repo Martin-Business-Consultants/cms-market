@@ -9,8 +9,17 @@ class Market::Settings
   KEY = "market"
   REFRESH = {"off" => "Only when someone asks", "monthly" => "Every month", "weekly" => "Every week"}.freeze
   REFRESH_EVERY = {"monthly" => 1.month, "weekly" => 1.week}.freeze
+  # What a pull gathers beyond each site's visibility and keywords, the tracked searches and the map.
+  EXTRAS = {
+    "keyword_facts" => "Keyword facts: Google and AI searches a month, difficulty and intent for each tracked search",
+    "ai_mentions" => "AI share of voice: how often real ChatGPT and Google AI answers mention each site, and what they cite",
+    "business_profiles" => "Business Profiles: the site's and each competitor's Google profile, as customers see it",
+    "site_health" => "Site health: the home page as Google renders it, and Lighthouse on a phone",
+    "web_mentions" => "Web mentions: the web talking about each business by name, and how warmly"
+  }.freeze
   DEFAULTS = {"monthly_budget_cents" => 2500, "country" => "United States", "language_code" => "en", "refresh" => "off",
-              "keyword_limit" => 200, "backlinks" => false}.freeze
+              "keyword_limit" => 200, "backlinks" => false, "sandbox" => false,
+              "ai_platforms" => %w[google_ai_overview google_ai_mode chat_gpt gemini perplexity claude], "extras" => EXTRAS.keys}.freeze
 
   def self.current = new(Setting.get(KEY))
 
@@ -33,6 +42,13 @@ class Market::Settings
   def refresh_every = REFRESH_EVERY[refresh]
   def keyword_limit = @data["keyword_limit"].to_i.clamp(10, 1000)
   def backlinks? = @data["backlinks"] == true
+  def sandbox? = @data["sandbox"] == true
+
+  # The AIs each tracked search is asked of, on every pull.
+  def ai_platforms = Array(@data["ai_platforms"]) & Market::AiCheck::PLATFORMS.keys
+  def ai_platform?(platform) = ai_platforms.include?(platform.to_s)
+  def extras = Array(@data["extras"]) & EXTRAS.keys
+  def extra?(name) = extras.include?(name.to_s)
 
   def balance = @data["balance"]&.to_d
   def checked_at = @data["checked_at"].presence&.then { Time.zone.parse(it) }
@@ -63,7 +79,10 @@ class Market::Settings
       "language_code" => ->(value) { value.to_s.strip.downcase.presence || DEFAULTS["language_code"] },
       "refresh" => ->(value) { REFRESH.key?(value.to_s) ? value.to_s : "off" },
       "keyword_limit" => ->(value) { value.to_i.clamp(10, 1000) },
-      "backlinks" => ->(value) { boolean.cast(value) || false }
+      "backlinks" => ->(value) { boolean.cast(value) || false },
+      "sandbox" => ->(value) { boolean.cast(value) || false },
+      "ai_platforms" => ->(value) { Array(value) & Market::AiCheck::PLATFORMS.keys },
+      "extras" => ->(value) { Array(value) & EXTRAS.keys }
     }
     data = readers.filter_map { |name, read| [name, read.call(params[name])] if params.key?(name) }.to_h
     data["monthly_budget_cents"] = data.delete("monthly_budget_dollars") if data.key?("monthly_budget_dollars")
@@ -81,7 +100,8 @@ class Market::Settings
   def to_h
     {dataforseo: {connected: search_connected?, login: dataforseo_login, balance: balance&.to_f, checked_at: checked_at, last_error: last_error},
      budget: {monthly: budget.to_f, spent_this_month: spent_this_month.to_f, remaining: remaining_budget.to_f},
-     country: country, language_code: language_code, refresh: refresh, keyword_limit: keyword_limit, backlinks: backlinks?,
+     country: country, language_code: language_code, refresh: refresh, keyword_limit: keyword_limit, backlinks: backlinks?, sandbox: sandbox?,
+     ai_platforms: ai_platforms, extras: extras,
      ai: {available: ai?, unavailable_reason: (Market::Plan.ai_unavailable_reason unless ai?)}}
   end
 end

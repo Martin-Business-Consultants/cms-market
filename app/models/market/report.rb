@@ -22,7 +22,7 @@ class Market::Report
 
   # The parts there's data for, each 0–100.
   def parts
-    @parts ||= [search_part, rankings_part, maps_part, content_part, findings_part, *google_parts].compact
+    @parts ||= [search_part, rankings_part, ai_part, maps_part, content_part, findings_part, *google_parts].compact
   end
 
   def score = parts.any? ? (parts.sum(&:score).to_f / parts.size).round : nil
@@ -54,6 +54,15 @@ class Market::Report
       days = Market::Ranking.where(checked_at: @since..).pluck(:checked_at, :position).group_by { it[0].to_date }.sort
       [Series.new(name: "Average position", points: days.map { |day, rows| [day.to_time, (rows.sum { it[1] || miss }.to_f / rows.size).round(1)] }, own: true),
         Series.new(name: "In the top 10", points: days.map { |day, rows| [day.to_time, rows.count { it[1].to_i.between?(1, 10) }.to_f] }, own: false)]
+    end
+  end
+
+  # AI search by week: the share of AI answers to the tracked searches that named the business, and that cited its site.
+  def ai_search
+    @ai_search ||= begin
+      weeks = Market::AiCheck.where(checked_at: @since.., answered: true).pluck(:checked_at, :mentioned, :cited).group_by { it[0].to_date.beginning_of_week }.sort
+      [Series.new(name: "Named it (%)", points: weeks.map { |week, rows| [week.to_time, (rows.count { it[1] } * 100.0 / rows.size).round] }, own: true),
+        Series.new(name: "Cited its site (%)", points: weeks.map { |week, rows| [week.to_time, (rows.count { it[2] } * 100.0 / rows.size).round] }, own: false)]
     end
   end
 
@@ -202,6 +211,16 @@ class Market::Report
     top3 = latest.count { it.position.to_i.between?(1, 3) }
     Part.new(key: :rankings, label: "Tracked searches", score: (((top10 + top3).to_f / (latest.size * 2)) * 100).round,
       detail: "#{top10} of #{latest.size} on page one, #{top3} in the top 3", path: :market_search_path)
+  end
+
+  def ai_part
+    latest = Market::AiCheck.latest_for(Market::Keyword.all).values.flat_map(&:values).select(&:answered)
+    return if latest.empty?
+
+    named = latest.count(&:mentioned)
+    cited = latest.count(&:cited)
+    Part.new(key: :ai, label: "AI search", score: ((named + cited * 0.5) * 100.0 / latest.size).clamp(0, 100).round,
+      detail: "Named in #{named} of #{latest.size} AI answers to the tracked searches, its site cited in #{cited}", path: :market_search_path)
   end
 
   def maps_part

@@ -1,14 +1,17 @@
 # frozen_string_literal: true
 
 # Where everyone ranked for one tracked search at one check: the organic
-# results (position, domain, url), the site's own position and page, and what
-# else was on the page (a map pack, ads, questions).
+# results (position, domain, url), the site's own position and page, what
+# else was on the page (a map pack, ads, questions), the map pack's
+# businesses, and the questions people also ask.
 class Market::Ranking < ApplicationRecord
   belongs_to :keyword
   belongs_to :pull, class_name: "Market::SearchPull", optional: true
 
   serialize :results, coder: JSON, type: Array
   serialize :features, coder: JSON, type: Array
+  serialize :local_pack, coder: JSON, type: Array
+  serialize :questions, coder: JSON, type: Array
 
   # The latest two checks of each keyword: { keyword_id => [latest, previous] }.
   def self.latest_for(keywords)

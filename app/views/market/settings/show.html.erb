@@ -35,6 +35,37 @@
       <% if @settings.dataforseo_password %>
         <label class="choice text-small"><%= form.check_box :remove_dataforseo_password %><span>Remove the saved password</span></label>
       <% end %>
+      <%= settings_switch form, :sandbox, "Test mode", hint: "Pulls from DataForSEO's sandbox: free, with made-up data in the real shape. For trying Market out; switch it off for real data.", checked: @settings.sandbox? %>
+    </section>
+
+    <section class="panel panel--padded fields">
+      <div class="stack stack--xs">
+        <h2 class="heading">AI search</h2>
+        <p class="text-muted">Each tracked search is asked of these on every pull, from the business's country, through DataForSEO, noting whether each names the business and cites its site, and who it names and cites instead. Roughly, per search per pull: AI Overview half a cent, AI Mode, ChatGPT and Gemini under a cent each, Perplexity and Claude a cent or two (the model's own charge).</p>
+      </div>
+      <%= hidden_field_tag "market[ai_platforms][]", "", id: nil %>
+      <% Market::AiCheck::PLATFORMS.each do |key, platform| %>
+        <%# herb:key key %>
+        <label class="choice">
+          <%= check_box_tag "market[ai_platforms][]", key, @settings.ai_platform?(key), id: "market_ai_platform_#{key}" %>
+          <span><%= platform[:name] %> <span class="text-small text-muted"><%= platform[:owner] %>: <%= platform[:how] %></span></span>
+        </label>
+      <% end %>
+    </section>
+
+    <section class="panel panel--padded fields">
+      <div class="stack stack--xs">
+        <h2 class="heading">Also pull</h2>
+        <p class="text-muted">More of what DataForSEO knows, each a few cents a pull.</p>
+      </div>
+      <%= hidden_field_tag "market[extras][]", "", id: nil %>
+      <% Market::Settings::EXTRAS.each do |key, label| %>
+        <%# herb:key key %>
+        <label class="choice">
+          <%= check_box_tag "market[extras][]", key, @settings.extra?(key), id: "market_extra_#{key}" %>
+          <span><%= label %></span>
+        </label>
+      <% end %>
     </section>
 
     <section class="panel panel--padded fields">

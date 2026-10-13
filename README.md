@@ -35,6 +35,25 @@ The big picture behind the site's SEO and marketing, beside the site it's about.
     it got;
   - **without buying twice:** a part pulled in the last day isn't paid for again;
   - **when you choose:** when someone asks, or every week or month.
+- **AI search**, as part of Search: each tracked search is asked, on every pull, of **Google's AI Overview**
+  (with the results page) and **AI Mode**, **ChatGPT** and **Gemini** (their real search answers, through
+  DataForSEO's LLM Scraper), and **Perplexity** and **Claude** (asked with web search on, through LLM
+  Responses). For each: whether it answered, named the business (and its place among the businesses Market
+  knows), cited its site, who it named instead and what it cited. Beside them, the **AI share of voice**
+  (how often real ChatGPT and Google AI answers mention the site and each competitor, from DataForSEO's
+  LLM Mentions database), what those answers say about the site, the searches Google's AI Overviews cite
+  each site for (Labs), and AI search volume beside Google's for each tracked search. Findings flag searches
+  the AIs answer without the business, competitors they name more, the sites they lean on, and a share of
+  voice far behind; the AI's suggestions are written to get the business named. Settings › Market chooses
+  which AIs to ask.
+- **Every figure says where it's from** on Search: Google Search Console (real), Google checked live, AI
+  answers checked live, the AI answers database, DataForSEO Labs estimates, Google Maps, Business
+  Profiles, the site check, web mentions.
+- **More from DataForSEO** (Settings › Market › Also pull): keyword facts (volume, AI volume, difficulty,
+  intent, CPC, trend), who wins the tracked searches, each site's Google Business Profile side by side
+  (rating, reviews, photos, claimed, hours, description, categories), the home page's health (rendered as
+  Google does, and Lighthouse on a phone), and web mentions with their tone. The questions people also ask
+  and the map pack come with each Google check. **Test mode** pulls from DataForSEO's free sandbox.
 - **Local search** works from a ZIP (or postcode) and a radius in miles (Market › Profile), not the whole
   country. On every pull, each tracked search is checked on Google Maps from a grid of points across the
   area (3×3, 5×5 or 7×7). **Maps** lists the searches beside the open one: its grid with the business's

@@ -55,8 +55,8 @@ module MarketHelpers
   class FakeApi
     attr_reader :calls
 
-    def initialize(traffic: {}, keywords: {}, competitors: [], rankings: {}, failures: {}, maps: ->(_keyword, _lat, _lng) { [] })
-      @traffic, @keywords, @competitors, @rankings, @failures, @maps = traffic, keywords, competitors, rankings, failures, maps
+    def initialize(traffic: {}, keywords: {}, competitors: [], rankings: {}, failures: {}, maps: ->(_keyword, _lat, _lng) { [] }, ai: {})
+      @traffic, @keywords, @competitors, @rankings, @failures, @maps, @ai = traffic, keywords, competitors, rankings, failures, maps, ai
       @calls = []
     end
 
@@ -64,8 +64,27 @@ module MarketHelpers
     def keywords(domain) = answer("keywords:#{domain}") { {"total" => @keywords.fetch(domain, []).size, "keywords" => @keywords.fetch(domain, [])} }
     def competitors(domain) = answer("competitors:#{domain}") { {"competitors" => @competitors} }
     def backlinks(domain) = answer("backlinks:#{domain}") { {"referring_domains" => 10} }
-    def ranking(keyword, location:) = answer("ranking:#{keyword}") { {"results" => @rankings.fetch(keyword, []), "features" => ["local_pack"], "location" => location} }
+    def ranking(keyword, location:, ai_overview: false)
+      answer("ranking:#{keyword}") do
+        {"results" => @rankings.fetch(keyword, []), "features" => ["local_pack"], "location" => location, "questions" => ["How much does a plumber cost?"],
+         "local_pack" => [{"title" => "Rival Plumbing", "domain" => "rival.example", "rating" => 4.8}], "ai_overview" => (ai_overview ? @ai.dig(keyword, "google_ai_overview") : nil)}
+      end
+    end
+
     def maps(keyword, lat:, lng:, zoom:) = answer("maps:#{keyword}") { @maps.call(keyword, lat, lng) }
+    def ai_overview_keywords(domain) = answer("ai_overview:#{domain}") { {"total" => 3, "keywords" => [{"keyword" => "plumber near me", "volume" => 500}]} }
+    def ai_mode(keyword, location:) = answer("ai_mode:#{keyword}") { @ai.dig(keyword, "google_ai_mode") || {"text" => "", "sources" => []} }
+    def llm_scraper(platform, keyword) = answer("#{platform}:#{keyword}") { @ai.dig(keyword, platform) || {"text" => "", "sources" => []} }
+    def llm_response(platform, prompt, model:, city: nil) = answer("#{platform}:#{prompt.split(" — ").first}") { (@ai.dig(prompt.split(" — ").first, platform) || {"text" => "", "sources" => []}).merge("model" => model) }
+    def models(platform) = [{"model_name" => (platform == "claude") ? "claude-sonnet-9" : "sonar", "web_search_supported" => true}]
+    def ai_mentions(sites, platform:) = answer("ai_mentions:#{platform}") { sites.keys.each_with_index.to_h { |key, index| [key, {"mentions" => (key == "site") ? 1 : 12 + index, "ai_search_volume" => 900}] } }
+    def ai_answers(domain, platform:) = answer("ai_answers:#{platform}") { [{"platform" => platform, "question" => "Best plumber in Springfield?", "answer" => "Rival Plumbing.", "sources" => ["yelp.com"]}] }
+    def ai_volume(keywords) = answer("ai_volume") { keywords.to_h { [it, 40] } }
+    def keyword_facts(keywords) = answer("keyword_facts") { keywords.to_h { [it, {"volume" => 880, "difficulty" => 22, "intent" => "commercial", "cpc" => 12.5}] } }
+    def serp_competitors(keywords) = answer("serp_competitors") { {"sites" => [{"domain" => "rival.example", "visibility" => 0.4, "keywords" => 2, "average_position" => 2.0}]} }
+    def business_profile(cid) = answer("business_profile:#{cid}") { {"title" => "Acme", "claimed" => false, "photos" => 2, "rating" => 4.1, "reviews" => 9, "hours" => false, "description" => true, "cid" => cid} }
+    def site_health(url) = answer("site_health") { {"url" => url, "onpage_score" => 71, "lighthouse" => {"performance" => 38, "seo" => 92}, "issues" => ["no_image_alt"]} }
+    def web_mentions(name) = answer("web_mentions:#{name}") { {"total" => (name == "Acme Plumbing") ? 4 : 60, "connotations" => {"positive" => 3}, "top_domains" => ["yelp.com"]} }
 
     private
 

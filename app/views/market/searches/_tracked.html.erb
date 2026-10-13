@@ -1,0 +1,89 @@
+<%# locals: (data:, settings:, can_write:) %>
+<%# Every tracked search across every place it's found: Google's results (checked live from the area), each AI's answer (named, cited, or not), Google Maps across the area, and what it's worth (Google's and AI's searches a month). A row opens in the sheet with the detail and the AI's suggestions. %>
+<% tracked = data.tracked %>
+<% platforms = data.ai_platforms %>
+<section class="panel panel--padded stack stack--sm" id="tracked">
+  <div class="row row--between">
+    <h2 class="heading">Searches tracked</h2>
+    <span class="text-small text-muted">Open one for every answer, who's named and cited, and the AI's suggestions · from <%= data.profile.local? ? "ZIP #{data.profile.local_zip}" : (data.profile.search_location || settings.country) %></span>
+  </div>
+  <% if tracked.any? %>
+    <div class="panel--scroll">
+      <table class="data-table market-compare market-tracked">
+        <thead>
+          <tr>
+            <th rowspan="2">Search</th>
+            <th class="market-group" title="Google's results, checked live">Google</th>
+            <% if platforms.any? %><th class="market-group" colspan="<%= platforms.size %>">AI search</th><% end %>
+            <th class="market-group">Maps</th>
+            <th class="market-group" colspan="2" title="Searches a month (Google: DataForSEO Labs; AI: DataForSEO AI Keyword Data)">A month</th>
+            <th rowspan="2"></th>
+          </tr>
+          <tr>
+            <th class="market-sub">Position</th>
+            <% platforms.each do |platform| %>
+              <%# herb:key platform %>
+              <th class="market-sub" title="<%= Market::AiCheck::PLATFORMS.dig(platform, :how) %>"><%= Market::AiCheck.platform_name(platform) %></th>
+            <% end %>
+            <th class="market-sub">Average</th>
+            <th class="market-sub data-table__num">Google</th>
+            <th class="market-sub data-table__num">AI</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% tracked.each do |row| %>
+            <%# herb:key row[:keyword].id %>
+            <tr>
+              <td>
+                <%= link_to row[:keyword].keyword, market_search_path(sheet: "keyword:#{row[:keyword].id}"), class: "title-link", data: {turbo_frame: "market_sheet"} %>
+                <% if (intent = row[:facts]["intent"]) %><div class="text-small text-muted"><%= intent.capitalize %><%= " · difficulty #{row[:facts]["difficulty"]}" if row[:facts]["difficulty"] %></div><% end %>
+              </td>
+              <td>
+                <% if row[:ranking] %>
+                  <%= market_position row[:position], row[:before] %>
+                  <% if row[:page] %><div class="text-small"><%= link_to row[:page].title.truncate(28), edit_page_path(row[:page].path), class: "link", title: "The page that ranks: /#{(row[:page].path == "home") ? "" : row[:page].path}" %></div><% end %>
+                <% else %>
+                  <span class="text-small text-muted">Not yet</span>
+                <% end %>
+              </td>
+              <% platforms.each do |platform| %>
+                <%# herb:key platform %>
+                <td class="market-ai-cell"><%= market_ai_mark row[:ai][platform] %></td>
+              <% end %>
+              <td class="text-small">
+                <% if row[:local] %>
+                  <%= link_to row[:local].average_position, market_maps_path(keyword: row[:keyword].id), class: "link", title: "Average position on Google Maps across the area" %>
+                <% else %>
+                  <span class="text-faint">—</span>
+                <% end %>
+              </td>
+              <td class="data-table__num text-small"><%= row[:facts]["volume"] ? number_with_delimiter(row[:facts]["volume"]) : "—" %></td>
+              <td class="data-table__num text-small"><%= row[:facts]["ai_volume"] ? number_with_delimiter(row[:facts]["ai_volume"]) : "—" %></td>
+              <td>
+                <% if can_write %>
+                  <%= button_to market_keyword_path(row[:keyword]), method: :delete, class: "btn btn--sm btn--plain", form_class: "contents", title: "Stop tracking" do %>
+                    <%= icon_tag "close" %><span class="visually-hidden">Stop tracking <%= row[:keyword].keyword %></span>
+                  <% end %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    <p class="text-small text-muted market-legend-line">
+      <span class="market-ai market-ai--named">●</span> named (¹ its place among the businesses Market knows: the site and its competitors, and ChatGPT's business cards) ·
+      <span class="market-ai market-ai--cited">◐</span> cited the site without naming it ·
+      <span class="market-ai market-ai--missing">○</span> answered without it · <span class="market-ai">–</span> no answer ·
+      <%= market_source :live %> <%= market_source :ai %> <%= market_source :maps %>
+    </p>
+  <% else %>
+    <p class="text-small text-muted">None yet. Track the searches customers make; each is checked on Google, asked of each AI and checked on Maps on every pull.</p>
+  <% end %>
+  <% if can_write %>
+    <%= form_with url: market_keywords_path, scope: :keyword, class: "stack stack--sm" do |form| %>
+      <%= form.text_area :keywords, rows: 2, placeholder: "Searches to track, one a line: emergency dentist grand rapids", required: true, aria: {label: "Searches to track"} %>
+      <div><button type="submit" class="btn btn--sm">Track</button></div>
+    <% end %>
+  <% end %>
+</section>

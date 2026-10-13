@@ -2,10 +2,15 @@
 
 # What DataForSEO said about one website (the site's own when there's no
 # competitor) at one time, by kind: overview (visibility), keywords (what it
-# ranks for), competitors (who shares its keywords: the site's only) and
-# backlinks. Kept, so movement shows between pulls.
+# ranks for), ai_overview (the searches Google's AI Overviews cite it for),
+# backlinks, business_profile (its Google profile) and web_mentions; and for
+# the market as a whole (on the site's own row): competitors (who shares its
+# keywords), serp_competitors (who wins the tracked searches),
+# keyword_facts, ai_mentions (AI share of voice), ai_answers (what AI says
+# about it) and site_health. Kept, so movement shows between pulls.
 class Market::SearchSnapshot < ApplicationRecord
-  KINDS = %w[overview keywords competitors backlinks].freeze
+  KINDS = %w[overview keywords competitors backlinks ai_overview business_profile web_mentions
+    serp_competitors keyword_facts ai_mentions ai_answers site_health].freeze
   FRESH_FOR = 20.hours
 
   belongs_to :competitor, optional: true

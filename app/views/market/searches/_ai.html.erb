@@ -1,0 +1,118 @@
+<%# locals: (data:, settings:) %>
+<%# AI search: how each AI answers the tracked searches (named, cited, who instead, what it cites), the AI share of voice from DataForSEO's database of real answers, and what those answers say about the business. %>
+<% summary = data.ai_summary %>
+<% mentions = data.market("ai_mentions") %>
+<% answers = Array(data.market("ai_answers")&.data&.dig("answers")) %>
+<section class="panel panel--padded stack stack--md" id="ai">
+  <div class="row row--between">
+    <h2 class="heading">AI search</h2>
+    <span class="text-small text-muted">Whether AI assistants name the business when customers ask, and who they name and cite instead</span>
+  </div>
+
+  <% if data.ai_checked? %>
+    <div class="stack stack--xs">
+      <h3 class="label">Asked each tracked search <%= market_source :ai %></h3>
+      <table class="data-table market-evidence-table">
+        <thead><tr><th>AI</th><th class="data-table__num">Answered</th><th class="data-table__num">Named it</th><th class="data-table__num">Cited its site</th><th>Asked</th></tr></thead>
+        <tbody>
+          <% summary.each do |platform, counts| %>
+            <%# herb:key platform %>
+            <tr>
+              <td><strong><%= Market::AiCheck.platform_name(platform) %></strong> <span class="text-small text-muted"><%= Market::AiCheck::PLATFORMS.dig(platform, :owner) %></span></td>
+              <td class="data-table__num"><%= counts[:answered] %>/<%= counts[:asked] %></td>
+              <td class="data-table__num"><%= tag.strong("#{counts[:named]}/#{counts[:answered]}", class: (counts[:named].zero? && counts[:answered].positive?) ? "market-down" : nil) %></td>
+              <td class="data-table__num"><%= counts[:cited] %>/<%= counts[:answered] %></td>
+              <td class="text-small text-muted"><%= counts[:checked_at] ? "#{time_ago_in_words(counts[:checked_at])} ago" : "Not yet" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    <div class="grid grid--2">
+      <div class="stack stack--xs">
+        <h3 class="label">Named instead</h3>
+        <% others = data.ai_named_others %>
+        <% if others.any? %>
+          <ul class="market-chips text-small">
+            <% others.each do |name, count| %>
+              <%# herb:key name %>
+              <li><%= name %> · <%= count %></li>
+            <% end %>
+          </ul>
+        <% else %>
+          <p class="text-small text-muted">No one else, in the answers so far.</p>
+        <% end %>
+      </div>
+      <div class="stack stack--xs">
+        <h3 class="label">Sites the AIs cite</h3>
+        <% cited = data.ai_cited_domains %>
+        <% if cited.any? %>
+          <ul class="market-chips text-small">
+            <% cited.each do |domain, count| %>
+              <%# herb:key domain %>
+              <li class="<%= class_names("market-chip--own": domain == data.profile.domain) %>"><%= domain %> · <%= count %></li>
+            <% end %>
+          </ul>
+          <p class="text-small text-muted">Being on these (a listing, a review, a mention) is how a business gets into the answers.</p>
+        <% else %>
+          <p class="text-small text-muted">None cited yet.</p>
+        <% end %>
+      </div>
+    </div>
+  <% else %>
+    <p class="text-small text-muted">
+      The next pull asks each tracked search of <%= settings.ai_platforms.map { Market::AiCheck.platform_name(it) }.to_sentence.presence || "the AIs chosen in Settings › Market" %>,
+      from the business's country, and notes whether each names the business and cites its site.
+    </p>
+  <% end %>
+
+  <% if mentions %>
+    <% sites = data.sites.to_h { [it.own? ? "site" : "competitor:#{it.competitor.id}", it.name] } %>
+    <div class="stack stack--xs">
+      <h3 class="label">AI share of voice <%= market_source :ai_db %></h3>
+      <table class="data-table market-evidence-table">
+        <thead>
+          <tr>
+            <th>Site</th>
+            <% mentions.data.each_key do |platform| %>
+              <%# herb:key platform %>
+              <th class="data-table__num"><%= (platform == "chat_gpt") ? "ChatGPT" : "Google AI" %> mentions</th>
+              <th class="data-table__num" title="How many searches a month the questions it's mentioned in get">AI searches</th>
+            <% end %>
+          </tr>
+        </thead>
+        <tbody>
+          <% sites.each do |key, name| %>
+            <%# herb:key key %>
+            <% own = key == "site" %>
+            <tr class="<%= class_names("market-compare__own": own) %>">
+              <td><strong><%= name %></strong></td>
+              <% mentions.data.each do |platform, rows| %>
+                <%# herb:key platform %>
+                <td class="data-table__num"><%= number_with_delimiter rows.dig(key, "mentions").to_i %></td>
+                <td class="data-table__num"><%= number_with_delimiter rows.dig(key, "ai_search_volume").to_i %></td>
+              <% end %>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+      <p class="text-small text-muted">From <%= time_ago_in_words(mentions.taken_at) %> ago. ChatGPT's answers are the United States' only.</p>
+    </div>
+  <% end %>
+
+  <% if answers.any? %>
+    <details class="market-closed">
+      <summary>What AI answers say about the site (<%= answers.size %>) <%= market_source :ai_db %></summary>
+      <ul class="divided">
+        <% answers.each_with_index do |answer, index| %>
+          <%# herb:key index %>
+          <li class="market-row stack stack--xs">
+            <strong class="text-small"><%= answer["question"] %></strong>
+            <span class="text-small market-text"><%= answer["answer"] %></span>
+            <span class="text-small text-muted"><%= (answer["platform"] == "chat_gpt") ? "ChatGPT" : "Google AI Overview" %><%= " · #{number_with_delimiter answer["ai_search_volume"]} AI searches a month" if answer["ai_search_volume"].to_i.positive? %><%= " · cites #{answer["sources"].first(4).join(", ")}" if answer["sources"].present? %></span>
+          </li>
+        <% end %>
+      </ul>
+    </details>
+  <% end %>
+</section>

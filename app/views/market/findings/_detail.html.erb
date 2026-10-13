@@ -45,6 +45,8 @@
         <%= link_to "#{record.name}'s website", market_competitor_path(record), class: "btn btn--sm", data: {turbo_frame: "_top"} %>
       <% elsif place == :local then %>
         <%= link_to "Maps", market_maps_path, class: "btn btn--sm", data: {turbo_frame: "_top"} %>
+      <% elsif place == :ai then %>
+        <%= link_to "AI search", market_search_path(anchor: "ai"), class: "btn btn--sm", data: {turbo_frame: "_top"} %>
       <% elsif place == :page then %>
         <%= link_to "Edit the page", edit_page_path(record.path), class: "btn btn--sm", data: {turbo_frame: "_top"} %>
       <% elsif place == :google then %>

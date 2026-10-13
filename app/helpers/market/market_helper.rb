@@ -91,6 +91,39 @@ module Market
       safe_join([now.to_s, " ", tag.span("#{(now < before) ? "↑" : "↓"}#{(before - now).abs}", class: (now < before) ? "market-up" : "market-down")])
     end
 
+    # Where a figure comes from, said the same way everywhere on Search.
+    SOURCES = {
+      console: ["Google Search Console", "Real clicks and searches, from the business's own Google account"],
+      live: ["Google, checked live", "Google's results for each search, checked from the business's area by DataForSEO"],
+      ai: ["AI answers, checked live", "Each search asked of each AI by DataForSEO, from the business's country"],
+      ai_db: ["AI answers database", "DataForSEO's database of real ChatGPT and Google AI Overview answers"],
+      estimate: ["Estimate", "DataForSEO Labs' estimate from its own crawl of Google, country-wide"],
+      maps: ["Google Maps, checked live", "Maps checked from points across the business's area by DataForSEO"],
+      business: ["Business Profile", "Google Business Profiles as customers see them, read by DataForSEO"],
+      site: ["Site check", "The home page rendered as Google does, and Lighthouse on a phone, by DataForSEO"],
+      web: ["Web mentions", "Pages across the web that name the business, found by DataForSEO"]
+    }.freeze
+
+    def market_source(kind)
+      label, title = SOURCES.fetch(kind)
+      tag.span(label, class: "market-source", title: title)
+    end
+
+    # One AI's answer to one search, as a mark: named and cited, named, cited only, not named, or no answer.
+    AI_MARKS = {"named_cited" => ["●", "Named, and cited its site", "market-ai market-ai--named"], "named" => ["●", "Named", "market-ai market-ai--named"],
+                "cited" => ["◐", "Cited its site, without naming it", "market-ai market-ai--cited"], "missing" => ["○", "Answered without it", "market-ai market-ai--missing"],
+                "no_answer" => ["–", "No answer", "market-ai"]}.freeze
+
+    def market_ai_mark(check)
+      return tag.span("·", class: "market-ai", title: "Not asked yet") unless check
+
+      mark, label, classes = AI_MARKS.fetch(check.verdict)
+      rank = (check.mention_rank && check.mention_rank > 0) ? " ##{check.mention_rank}" : ""
+      tag.span(class: classes, title: "#{check.platform_name}: #{label}#{rank}#{" (#{check.error})" if check.error.present?}") do
+        safe_join([mark, (check.mentioned && check.mention_rank ? tag.sup(check.mention_rank) : nil), tag.span("#{check.platform_name}: #{label}", class: "visually-hidden")].compact)
+      end
+    end
+
     def market_channel_label(channel) = Market::Opportunity::CHANNELS[channel]
     def market_change_kind(kind) = Market::Workup::KINDS[kind]
 

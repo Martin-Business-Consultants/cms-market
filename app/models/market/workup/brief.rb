@@ -37,7 +37,7 @@ class Market::Workup::Brief
   end
 
   def to_s
-    [business, facts, google, pages, *focus_pages.map { page_text(it) }].compact_blank.join("\n\n")
+    [business, facts, ai_search, google, pages, *focus_pages.map { page_text(it) }].compact_blank.join("\n\n")
   end
 
   # A page's text fields, {id => text}; nil for a path that isn't a page.
@@ -145,6 +145,31 @@ class Market::Workup::Brief
     paths << record.evidence["page_path"] if kind == "finding" && record.evidence["page_path"]
     paths << "home"
     ::Page.where(path: paths.uniq).to_a.sort_by { paths.index(it.path) }.first(2)
+  end
+
+  # How the AIs answer: for a search, each one's answer (named the business or not, who instead,
+  # what it cited); for the site, how often each named it across the searches, and its share of
+  # voice in DataForSEO's database of real AI answers.
+  def ai_search
+    if kind.in?(%w[keyword map])
+      checks = Market::AiCheck.latest_for([record])[record.id].to_h.values.select(&:answered)
+      return if checks.empty?
+
+      ["Asked of AI assistants (checked live through DataForSEO):",
+        *checks.map do |check|
+          "#{check.platform_name}: #{check.mentioned ? "named the business #{check.mention_rank.to_i.ordinalize}" : "did not name the business"}#{", cited its site" if check.cited}; " \
+            "named #{check.named.reject { it["own"] }.map { it["name"] }.first(6).join(", ").presence || "no one else known"}; cited #{check.source_domains.first(6).join(", ").presence || "nothing"}. " \
+            "Answer: #{check.answer.to_s.squish.truncate(500)}"
+        end].join("\n")
+    elsif kind.in?(%w[visibility finding opportunity page])
+      overview = Market::Search::Overview.new
+      return unless overview.ai_checked?
+
+      lines = overview.ai_summary.map { |platform, counts| "#{Market::AiCheck.platform_name(platform)}: named the business in #{counts[:named]} of #{counts[:answered]} answers, cited its site in #{counts[:cited]}" }
+      ["AI search across the tracked searches (checked live):", *lines,
+        "Named instead: #{overview.ai_named_others.map { "#{it[0]} (#{it[1]})" }.join(", ").presence || "no one"}",
+        "Sites the AIs cite most: #{overview.ai_cited_domains.map { "#{it[0]} (#{it[1]})" }.join(", ").presence || "none"}"].join("\n")
+    end
   end
 
   # What Google says, from the Google plugin when it's on: the real searches and clicks, the visits and enquiries, the profile's calls and reviews.

@@ -88,6 +88,12 @@
     </section>
 
     <section class="panel panel--padded stack stack--sm">
+      <h2 class="heading">AI search</h2>
+      <p class="text-small text-muted">Of the AI answers to the tracked searches each week (Google's AI Overview and AI Mode, ChatGPT, Gemini, Perplexity, Claude), how many named the business and cited its site. <%= link_to "AI search", market_search_path(anchor: "ai"), class: "link" %></p>
+      <%= market_line_chart report.ai_search, label: "Share of AI answers naming the business, by week", format: ->(value) { "#{value.round}%" } %>
+    </section>
+
+    <section class="panel panel--padded stack stack--sm">
       <h2 class="heading">Google Maps</h2>
       <p class="text-small text-muted">Average position across the area (up is better), and the share of points in the top 3. <%= link_to "Maps", market_maps_path, class: "link" %></p>
       <% average, share = report.maps %>

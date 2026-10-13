@@ -1,0 +1,80 @@
+<%# locals: (data:) %>
+<%# The business beyond the results: each Google Business Profile side by side, the site's home page health, and the web naming each business. %>
+<% profiles = data.sites.select(&:business_profile) %>
+<% health = data.market("site_health")&.data %>
+<% web = data.sites.select(&:web_mentions) %>
+<% if profiles.any? %>
+  <section class="panel panel--padded stack stack--sm" id="profiles">
+    <div class="row row--between">
+      <h2 class="heading">Business Profiles <%= market_source :business %></h2>
+      <span class="text-small text-muted">What customers see on Google, side by side</span>
+    </div>
+    <div class="panel--scroll">
+      <table class="data-table market-compare">
+        <thead><tr><th>Business</th><th class="data-table__num">Rating</th><th class="data-table__num">Reviews</th><th class="data-table__num">Photos</th><th>Claimed</th><th>Hours</th><th>Description</th><th>Categories</th></tr></thead>
+        <tbody>
+          <% profiles.each do |site| %>
+            <%# herb:key site.domain %>
+            <% profile = site.business_profile.data %>
+            <tr class="<%= class_names("market-compare__own": site.own?) %>">
+              <td><strong><%= site.name %></strong><div class="text-small text-muted"><%= profile["category"] %></div></td>
+              <td class="data-table__num"><%= profile["rating"] ? "#{profile["rating"]}★" : "—" %></td>
+              <td class="data-table__num"><%= number_with_delimiter profile["reviews"].to_i %></td>
+              <td class="data-table__num"><%= number_with_delimiter profile["photos"].to_i %></td>
+              <td><%= profile["claimed"] ? "Yes" : tag.span("No", class: "market-down") %></td>
+              <td><%= profile["hours"] ? "Yes" : tag.span("No", class: "market-down") %></td>
+              <td><%= profile["description"] ? "Yes" : tag.span("No", class: "market-down") %></td>
+              <td class="text-small"><%= 1 + Array(profile["additional_categories"]).size %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+<% end %>
+
+<% if health %>
+  <section class="panel panel--padded stack stack--sm" id="health">
+    <div class="row row--between">
+      <h2 class="heading">Site health <%= market_source :site %></h2>
+      <span class="text-small text-muted"><%= health["url"] %></span>
+    </div>
+    <dl class="market-facts text-small">
+      <% if health["onpage_score"] %><dt>Page score</dt><dd><%= health["onpage_score"] %>/100</dd><% end %>
+      <% Hash(health["lighthouse"]).each do |category, score| %>
+        <%# herb:key category %>
+        <dt>Lighthouse <%= category.humanize.downcase %></dt><dd class="<%= class_names("market-down": score < 50, "market-up": score >= 90) %>"><%= score %>/100</dd>
+      <% end %>
+      <% if health["lcp_ms"] %><dt>Largest paint</dt><dd><%= (health["lcp_ms"] / 1000.0).round(1) %> s</dd><% end %>
+      <% if health["title"] %><dt>Title</dt><dd><%= health["title"] %> <span class="text-faint">(<%= health["title_length"] %>)</span></dd><% end %>
+      <% if health["h1"] %><dt>Main heading</dt><dd><%= health["h1"] %></dd><% end %>
+      <% if health["words"] %><dt>Words</dt><dd><%= number_with_delimiter health["words"] %></dd><% end %>
+      <% if Array(health["issues"]).any? %><dt>To fix</dt><dd><%= health["issues"].map(&:humanize).join(", ") %></dd><% end %>
+    </dl>
+  </section>
+<% end %>
+
+<% if web.any? %>
+  <section class="panel panel--padded stack stack--sm" id="web">
+    <div class="row row--between">
+      <h2 class="heading">Web mentions <%= market_source :web %></h2>
+      <span class="text-small text-muted">Pages across the web naming each business: what AI assistants learn from</span>
+    </div>
+    <table class="data-table market-evidence-table">
+      <thead><tr><th>Business</th><th class="data-table__num">Pages</th><th>Tone</th><th>Most on</th></tr></thead>
+      <tbody>
+        <% web.each do |site| %>
+          <%# herb:key site.domain %>
+          <% mention = site.web_mentions.data %>
+          <% tone = Hash(mention["connotations"]) %>
+          <tr class="<%= class_names("market-compare__own": site.own?) %>">
+            <td><strong><%= site.name %></strong></td>
+            <td class="data-table__num"><%= number_with_delimiter mention["total"].to_i %></td>
+            <td class="text-small"><%= tone.any? ? tone.map { |kind, count| "#{kind} #{count}" }.join(" · ") : "—" %></td>
+            <td class="text-small"><%= Array(mention["top_domains"]).first(4).join(", ") %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </section>
+<% end %>

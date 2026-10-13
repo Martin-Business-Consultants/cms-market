@@ -1,0 +1,55 @@
+<%# locals: (data:, can_write:) %>
+<%# Who wins: the sites most visible across the tracked searches (DataForSEO Labs' SERP competitors), and the sites sharing the most of the site's keywords that aren't watched yet. %>
+<% winners = Array(data.market("serp_competitors")&.data&.dig("sites")) %>
+<% watched = data.competitor_sites.map(&:domain) %>
+<% if winners.any? %>
+  <section class="panel panel--padded stack stack--sm" id="winners">
+    <div class="row row--between">
+      <h2 class="heading">Who wins your searches <%= market_source :estimate %></h2>
+      <span class="text-small text-muted">Across the tracked searches, by how visible each site is</span>
+    </div>
+    <table class="data-table market-evidence-table">
+      <thead><tr><th>Site</th><th class="data-table__num">Visibility</th><th class="data-table__num">Searches</th><th class="data-table__num">Avg. position</th><th></th></tr></thead>
+      <tbody>
+        <% winners.first(12).each do |row| %>
+          <%# herb:key row["domain"] %>
+          <% own = row["domain"] == data.profile.domain %>
+          <tr class="<%= class_names("market-compare__own": own) %>">
+            <td><strong><%= row["domain"] %></strong></td>
+            <td class="data-table__num"><%= (row["visibility"].to_f * 100).round(1) %>%</td>
+            <td class="data-table__num"><%= row["keywords"] %></td>
+            <td class="data-table__num"><%= row["average_position"] %></td>
+            <td>
+              <% if own %>
+                <span class="text-small text-muted">This site</span>
+              <% elsif watched.include?(row["domain"]) %>
+                <span class="text-small text-muted">Watched</span>
+              <% elsif can_write %>
+                <%= link_to "Watch", new_market_competitor_path(name: row["domain"], website: "https://#{row["domain"]}"), class: "btn btn--sm" %>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </section>
+<% end %>
+
+<% unwatched = data.unwatched.first(8) %>
+<% if unwatched.any? %>
+  <section class="panel panel--padded stack stack--sm">
+    <h2 class="heading">Also competing in search</h2>
+    <p class="text-small text-muted">Sites sharing the most of this site's keywords that aren't watched yet. Watch the ones that are businesses.</p>
+    <ul class="divided">
+      <% unwatched.each do |row| %>
+        <%# herb:key row["domain"] %>
+        <li class="row row--between market-row">
+          <span class="grow"><strong><%= row["domain"] %></strong> <span class="text-small text-muted"><%= number_with_delimiter row["shared_keywords"] %> shared keywords · <%= number_with_delimiter row["organic_traffic"] %> visits a month (est.)</span></span>
+          <% if can_write %>
+            <%= link_to "Watch", new_market_competitor_path(name: row["domain"], website: "https://#{row["domain"]}"), class: "btn btn--sm" %>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  </section>
+<% end %>

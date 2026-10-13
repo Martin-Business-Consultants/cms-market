@@ -19,6 +19,8 @@ module Market
     # The transport is injectable: tests answer without the network.
     class Client
       BASE = URI("https://api.dataforseo.com/v3/")
+      # DataForSEO's sandbox: the same answers in shape, with made-up data, free (Settings › Market › Test mode).
+      SANDBOX = URI("https://sandbox.dataforseo.com/v3/")
       MAX_ATTEMPTS = 3
       OPEN_TIMEOUT = 10
       READ_TIMEOUT = 90
@@ -61,6 +63,13 @@ module Market
         call(:post, endpoint, [task], target: target)
       end
 
+      # A free GET (a list of models or locations): the task's `result` array.
+      def get(endpoint)
+        raise AuthError.new("DataForSEO isn't connected: add the login and password in Settings › Market.") unless @setting.search_connected?
+
+        call(:get, endpoint, nil, target: nil)
+      end
+
       # The account's balance in dollars (appendix/user_data, which costs nothing).
       def balance
         raise AuthError.new("Add the DataForSEO login and password first.") unless @setting.search_connected?
@@ -77,7 +86,7 @@ module Market
         error = nil
         begin
           attempts += 1
-          json = parse(*@transport.call(method, BASE + endpoint, body))
+          json = parse(*@transport.call(method, (@setting.sandbox? ? SANDBOX : BASE) + endpoint, body))
           task = Array(json["tasks"]).first || {}
           check!(json["status_code"], json["status_message"])
           check!(task["status_code"], task["status_message"])

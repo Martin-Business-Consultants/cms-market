@@ -51,7 +51,7 @@ RSpec.describe "Market with Google", type: :request do
     expect(response.body).to include("Clicks from Google", "Visits and enquiries", "From the Business Profile", "Enquiries")
 
     get market_search_path
-    expect(response.body).to include("From Google Search Console", "Close to the top", "Shown a lot, clicked little", "emergency plumber")
+    expect(response.body).to include("Google Search Console", "Close to the top", "Shown a lot, clicked little", "emergency plumber")
 
     page = Page.find_by!(slug: "emergency")
     get market_search_path(sheet: "page:#{page.id}")

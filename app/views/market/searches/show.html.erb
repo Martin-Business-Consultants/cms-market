@@ -17,7 +17,7 @@
 <div class="stack stack--lg">
   <% if pull&.working? %>
     <p class="market-notice text-small" data-controller="refresh" data-refresh-interval-value="5">
-      <%= icon_tag "refresh" %> Pulling from DataForSEO: every site's visibility and keywords, then who ranks where for the tracked searches. A minute or two.
+      <%= icon_tag "refresh" %> Pulling from DataForSEO: every site's visibility and keywords, who ranks where for the tracked searches, each AI's answers, and the map. A few minutes.
     </p>
   <% elsif pull && pull.state.in?(%w[stopped failed partial]) then %>
     <% partial = pull.state == "partial" %>
@@ -27,215 +27,29 @@
     </p>
   <% end %>
 
-  <section class="panel panel--padded stack stack--sm">
-    <div class="row row--between">
-      <h2 class="heading">Visibility</h2>
-      <span class="text-small text-muted"><%= pull ? "Pulled #{time_ago_in_words(pull.finished_at || pull.updated_at)} ago · #{market_money pull.cost}" : "Not pulled yet" %></span>
-    </div>
-    <% if !@settings.search_connected? %>
-      <p class="text-small text-muted">
-        Search data comes from DataForSEO: visibility, estimated traffic, the keywords each site ranks for, and who ranks where for the searches you track.
-        <% if Current.user.can?("settings:read") %><%= link_to "Connect it in Settings › Market", settings_market_path, class: "link" %>.<% end %>
-      </p>
-    <% elsif !@data.profile.domain then %>
-      <p class="text-small text-muted">Set the site's address in Settings › General to pull its search data.</p>
-    <% elsif !@data.pulled? then %>
-      <p class="text-small text-muted">No search data yet. Pull it to see how visible the site is against each competitor.</p>
-    <% end %>
-    <% if @data.pulled? %>
-      <% backlinks = @data.sites.any?(&:backlinks) %>
-      <div class="panel--scroll">
-        <table class="data-table market-compare">
-          <thead>
-            <tr>
-              <th>Site</th><th class="data-table__num">Keywords</th><th class="data-table__num">Traffic <span class="text-muted">(est./mo)</span></th>
-              <th class="data-table__num">Top 3</th><th class="data-table__num">Top 10</th><th class="data-table__num">Paid keywords</th>
-              <% if backlinks %><th class="data-table__num">Linking sites</th><% end %>
-            </tr>
-          </thead>
-          <tbody>
-            <% @data.sites.each do |site| %>
-              <%# herb:key site.domain %>
-              <tr class="<%= class_names("market-compare__own": site.own?) %>">
-                <td>
-                  <%= link_to site.name, market_search_path(sheet: "visibility:#{site.own? ? "own" : site.competitor.id}"), class: "title-link", data: {turbo_frame: "market_sheet"} %>
-                  <div class="text-small text-muted"><%= site.domain %></div>
-                </td>
-                <% if site.pulled? %>
-                  <td class="data-table__num"><%= market_change site.figure("organic_keywords"), site.before("organic_keywords") %></td>
-                  <td class="data-table__num"><%= market_change site.figure("organic_traffic"), site.before("organic_traffic") %></td>
-                  <td class="data-table__num"><%= number_with_delimiter site.figure("top_3") %></td>
-                  <td class="data-table__num"><%= number_with_delimiter site.figure("top_10") %></td>
-                  <td class="data-table__num"><%= number_with_delimiter site.figure("paid_keywords") %></td>
-                  <% if backlinks %><td class="data-table__num"><%= site.backlinks ? number_with_delimiter(site.backlinks.data["referring_domains"]) : "—" %></td><% end %>
-                <% else %>
-                  <td colspan="<%= backlinks ? 6 : 5 %>" class="text-small text-muted">Not pulled yet</td>
-                <% end %>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      </div>
-    <% end %>
-  </section>
 
-  <% if @google&.totals %>
-    <% now = @google.totals %>
-    <% before = @google.totals_before %>
-    <section class="panel panel--padded stack stack--sm" id="search_console">
-      <div class="row row--between">
-        <h2 class="heading">From Google Search Console</h2>
-        <span class="text-small text-muted">Real figures, last 28 days · synced <%= time_ago_in_words(@google.synced_at) %> ago</span>
-      </div>
-      <dl class="market-facts text-small">
-        <dt>Clicks</dt><dd><%= market_change now[:clicks], before&.dig(:clicks) %></dd>
-        <dt>Impressions</dt><dd><%= market_change now[:impressions], before&.dig(:impressions) %></dd>
-        <dt>Click-through · position</dt><dd><%= (now[:ctr] * 100).round(1) %>% · <%= now[:position] %></dd>
-      </dl>
-      <div class="grid grid--2">
-        <div class="stack stack--xs">
-          <h3 class="label">Close to the top</h3>
-          <p class="text-small text-muted">Searches Google shows the site for, 4th to 20th: the quickest to move up.</p>
-          <table class="data-table market-evidence-table">
-            <thead><tr><th>Search</th><th class="data-table__num">Impr.</th><th class="data-table__num">Pos.</th><th></th></tr></thead>
-            <tbody>
-              <% striking = @google.striking_distance(limit: 10) %>
-              <% tracked_words = @data.keywords.map(&:keyword) %>
-              <% striking.each do |row| %>
-                <%# herb:key row["keys"][0] %>
-                <tr>
-                  <td><%= row["keys"][0] %></td>
-                  <td class="data-table__num"><%= number_with_delimiter row["impressions"] %></td>
-                  <td class="data-table__num"><%= row["position"].to_f.round(1) %></td>
-                  <td>
-                    <% if tracked_words.include?(row["keys"][0]) %>
-                      <span class="text-small text-muted">Tracked</span>
-                    <% elsif can_write %>
-                      <%= button_to "Track", market_keywords_path, params: {keyword: {keywords: row["keys"][0], source: "ranked"}, return_to: market_search_path(anchor: "search_console")}, class: "btn btn--sm", form_class: "contents" %>
-                    <% end %>
-                  </td>
-                </tr>
-              <% end %>
-              <%= table_empty_row("None right now.", columns: 4) if striking.none? %>
-            </tbody>
-          </table>
-        </div>
-        <div class="stack stack--xs">
-          <h3 class="label">Shown a lot, clicked little</h3>
-          <p class="text-small text-muted">Pages whose title and description don't win the click for where they rank. Open one for the AI's rewrite.</p>
-          <table class="data-table market-evidence-table">
-            <thead><tr><th>Page</th><th class="data-table__num">Impr.</th><th class="data-table__num">CTR</th><th class="data-table__num">Pos.</th></tr></thead>
-            <tbody>
-              <% low = @google.low_click_pages(limit: 10) %>
-              <% pages = Page.where(path: low.map { @google.page_path(it["keys"][0]) }).index_by(&:path) %>
-              <% low.each do |row| %>
-                <%# herb:key row["keys"][0] %>
-                <% path = @google.page_path(row["keys"][0]) %>
-                <tr>
-                  <td>
-                    <% if (page = pages[path]) %>
-                      <%= link_to "/#{(path == "home") ? "" : path}", market_search_path(sheet: "page:#{page.id}"), class: "title-link", data: {turbo_frame: "market_sheet"} %>
-                    <% else %>
-                      /<%= (path == "home") ? "" : path %>
-                    <% end %>
-                  </td>
-                  <td class="data-table__num"><%= number_with_delimiter row["impressions"] %></td>
-                  <td class="data-table__num"><%= (row["ctr"].to_f * 100).round(1) %>%</td>
-                  <td class="data-table__num"><%= row["position"].to_f.round(1) %></td>
-                </tr>
-              <% end %>
-              <%= table_empty_row("None right now.", columns: 4) if low.none? %>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
+  <% if @settings.sandbox? %>
+    <p class="market-notice text-small" role="status"><strong>Test mode:</strong> pulls use DataForSEO's sandbox, free and made up. Switch it off in Settings › Market for real data.</p>
   <% end %>
 
-  <% tracked = @data.tracked %>
-  <% shown = @data.competitor_sites.first(4) %>
-  <section class="panel panel--padded stack stack--sm" id="tracked">
-    <div class="row row--between">
-      <h2 class="heading">Searches tracked</h2>
-      <span class="text-small text-muted">Open one for its results and the AI's suggestions · from <%= @data.profile.local? ? "ZIP #{@data.profile.local_zip}" : (@data.profile.search_location || @settings.country) %></span>
-    </div>
-    <% if tracked.any? %>
-      <div class="panel--scroll">
-        <table class="data-table market-compare">
-          <thead>
-            <tr>
-              <th>Search</th><th>This site</th>
-              <% shown.each do |site| %>
-                <%# herb:key site.domain %>
-                <th title="<%= site.name %>"><%= site.name.truncate(16) %></th>
-              <% end %>
-              <th>Maps</th><th>On the page</th><th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <% tracked.each do |row| %>
-              <%# herb:key row[:keyword].id %>
-              <tr>
-                <td><%= link_to row[:keyword].keyword, market_search_path(sheet: "keyword:#{row[:keyword].id}"), class: "title-link", data: {turbo_frame: "market_sheet"} %></td>
-                <td>
-                  <% if row[:ranking] %>
-                    <%= market_position row[:position], row[:before] %>
-                    <% if row[:page] %><div class="text-small"><%= link_to "/#{(row[:page].path == "home") ? "" : row[:page].path}", edit_page_path(row[:page].path), class: "link" %></div><% end %>
-                  <% else %>
-                    <span class="text-small text-muted">Not checked yet</span>
-                  <% end %>
-                </td>
-                <% shown.each do |site| %>
-                  <%# herb:key site.domain %>
-                  <td><%= row[:ranking] ? market_position(row[:competitors][site.domain], nil) : "" %></td>
-                <% end %>
-                <td class="text-small">
-                  <% if row[:local] %>
-                    <%= link_to market_maps_path(keyword: row[:keyword].id), class: "link", title: "Average position on Google Maps across the area" do %><%= row[:local].average_position %><% end %>
-                  <% end %>
-                </td>
-                <td class="text-small text-muted"><%= Array(row[:ranking]&.features).map { it.humanize.downcase }.first(3).join(", ") %></td>
-                <td>
-                  <% if can_write %>
-                    <%= button_to market_keyword_path(row[:keyword]), method: :delete, class: "btn btn--sm btn--plain", form_class: "contents", title: "Stop tracking" do %>
-                      <%= icon_tag "close" %><span class="visually-hidden">Stop tracking <%= row[:keyword].keyword %></span>
-                    <% end %>
-                  <% end %>
-                </td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      </div>
-    <% else %>
-      <p class="text-small text-muted">None yet. Track the searches customers make; each is checked on every pull, with the page that ranks.</p>
-    <% end %>
-    <% if can_write %>
-      <%= form_with url: market_keywords_path, scope: :keyword, class: "stack stack--sm" do |form| %>
-        <%= form.text_area :keywords, rows: 2, placeholder: "Searches to track, one a line: emergency dentist grand rapids", required: true, aria: {label: "Searches to track"} %>
-        <div><button type="submit" class="btn btn--sm">Track</button></div>
-      <% end %>
-    <% end %>
-  </section>
+  <nav class="cluster cluster--sm text-small market-jump" aria-label="On this page">
+    <%= link_to "Searches", "#tracked", class: "link" %>
+    <%= link_to "AI search", "#ai", class: "link" %>
+    <% if @google&.totals %><%= link_to "Search Console", "#search_console", class: "link" %><% end %>
+    <%= link_to "Visibility", "#visibility", class: "link" %>
+    <%= link_to "Who wins", "#winners", class: "link" %>
+    <%= link_to "Business Profiles", "#profiles", class: "link" %>
+    <%= link_to "Site health", "#health", class: "link" %>
+    <%= link_to "Web mentions", "#web", class: "link" %>
+    <%= link_to "Maps", market_maps_path, class: "link" %>
+  </nav>
 
-  <% unwatched = @data.unwatched.first(8) %>
-  <% if unwatched.any? %>
-    <section class="panel panel--padded stack stack--sm">
-      <h2 class="heading">Also competing in search</h2>
-      <p class="text-small text-muted">Sites sharing the most of this site's keywords that aren't watched yet. Watch the ones that are businesses.</p>
-      <ul class="divided">
-        <% unwatched.each do |row| %>
-          <%# herb:key row["domain"] %>
-          <li class="row row--between market-row">
-            <span class="grow"><strong><%= row["domain"] %></strong> <span class="text-small text-muted"><%= number_with_delimiter row["shared_keywords"] %> shared keywords · <%= number_with_delimiter row["organic_traffic"] %> visits a month (est.)</span></span>
-            <% if can_write %>
-              <%= link_to "Watch", new_market_competitor_path(name: row["domain"], website: "https://#{row["domain"]}"), class: "btn btn--sm" %>
-            <% end %>
-          </li>
-        <% end %>
-      </ul>
-    </section>
-  <% end %>
+  <%= render "market/searches/tracked", data: @data, settings: @settings, can_write: can_write %>
+  <%= render "market/searches/ai", data: @data, settings: @settings %>
+  <%= render "market/searches/console", console: @google, data: @data, can_write: can_write %>
+  <%= render "market/searches/visibility", data: @data, settings: @settings, pull: pull %>
+  <%= render "market/searches/winners", data: @data, can_write: can_write %>
+  <%= render "market/searches/business", data: @data %>
 </div>
 
 <%# A row opened: its facts and the AI's suggestions, in a sheet over the page; the address keeps it, so a reload (and the wait for the AI) keeps it open. %>

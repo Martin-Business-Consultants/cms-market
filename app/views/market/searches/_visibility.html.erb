@@ -1,0 +1,55 @@
+<%# locals: (data:, settings:, pull:) %>
+<%# Each site's visibility in Google, estimated by DataForSEO Labs country-wide, with the searches Google's AI Overviews cite it for. %>
+<section class="panel panel--padded stack stack--sm" id="visibility">
+  <div class="row row--between">
+    <h2 class="heading">Visibility <%= market_source :estimate %></h2>
+    <span class="text-small text-muted"><%= pull ? "Pulled #{time_ago_in_words(pull.finished_at || pull.updated_at)} ago · #{market_money pull.cost}" : "Not pulled yet" %></span>
+  </div>
+  <% if !settings.search_connected? %>
+    <p class="text-small text-muted">
+      Search data comes from DataForSEO: visibility, estimated traffic, the keywords each site ranks for, and who ranks where for the searches you track.
+      <% if Current.user.can?("settings:read") %><%= link_to "Connect it in Settings › Market", settings_market_path, class: "link" %>.<% end %>
+    </p>
+  <% elsif !data.profile.domain then %>
+    <p class="text-small text-muted">Set the site's address in Settings › General to pull its search data.</p>
+  <% elsif !data.pulled? then %>
+    <p class="text-small text-muted">No search data yet. Pull it to see how visible the site is against each competitor.</p>
+  <% end %>
+  <% if data.pulled? %>
+    <% backlinks = data.sites.any?(&:backlinks) %>
+    <div class="panel--scroll">
+      <table class="data-table market-compare">
+        <thead>
+          <tr>
+            <th>Site</th><th class="data-table__num">Keywords</th><th class="data-table__num">Traffic <span class="text-muted">(est./mo)</span></th>
+            <th class="data-table__num">Top 3</th><th class="data-table__num">Top 10</th><th class="data-table__num">Paid keywords</th>
+            <th class="data-table__num" title="Searches Google's AI Overviews cite the site for (DataForSEO Labs)">AI Overview citations</th>
+            <% if backlinks %><th class="data-table__num">Linking sites</th><% end %>
+          </tr>
+        </thead>
+        <tbody>
+          <% data.sites.each do |site| %>
+            <%# herb:key site.domain %>
+            <tr class="<%= class_names("market-compare__own": site.own?) %>">
+              <td>
+                <%= link_to site.name, market_search_path(sheet: "visibility:#{site.own? ? "own" : site.competitor.id}"), class: "title-link", data: {turbo_frame: "market_sheet"} %>
+                <div class="text-small text-muted"><%= site.domain %></div>
+              </td>
+              <% if site.pulled? %>
+                <td class="data-table__num"><%= market_change site.figure("organic_keywords"), site.before("organic_keywords") %></td>
+                <td class="data-table__num"><%= market_change site.figure("organic_traffic"), site.before("organic_traffic") %></td>
+                <td class="data-table__num"><%= number_with_delimiter site.figure("top_3") %></td>
+                <td class="data-table__num"><%= number_with_delimiter site.figure("top_10") %></td>
+                <td class="data-table__num"><%= number_with_delimiter site.figure("paid_keywords") %></td>
+                <td class="data-table__num"><%= site.ai_overview ? number_with_delimiter(site.ai_overview.data["total"]) : "—" %></td>
+                <% if backlinks %><td class="data-table__num"><%= site.backlinks ? number_with_delimiter(site.backlinks.data["referring_domains"]) : "—" %></td><% end %>
+              <% else %>
+                <td colspan="<%= backlinks ? 7 : 6 %>" class="text-small text-muted">Not pulled yet</td>
+              <% end %>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</section>

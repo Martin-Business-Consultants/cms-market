@@ -33,11 +33,11 @@ class Market::LocalScan < ApplicationRecord
       results = Array(answer[:results])
       mine = results.find { ours?(it, profile) }
       {"row" => answer[:point].row, "col" => answer[:point].col, "lat" => answer[:point].lat, "lng" => answer[:point].lng,
-       "position" => mine&.dig("position"), "top" => results.first(3).map { it["title"] }, "rating" => mine&.dig("rating"), "reviews" => mine&.dig("reviews")}.compact
+       "position" => mine&.dig("position"), "top" => results.first(3).map { it["title"] }, "rating" => mine&.dig("rating"), "reviews" => mine&.dig("reviews"), "cid" => mine&.dig("cid")}.compact
     end
     positions = points.map { it["position"] || MISS }
     leaders = answers.flat_map { Array(it[:results]).first(3).reject { |row| ours?(row, profile) } }
-      .group_by { it["title"] }.map { |title, rows| {"title" => title, "domain" => rows.first["domain"], "top3_points" => rows.size, "rating" => rows.first["rating"], "reviews" => rows.first["reviews"], "category" => rows.first["category"]}.compact }
+      .group_by { it["title"] }.map { |title, rows| {"title" => title, "domain" => rows.first["domain"], "top3_points" => rows.size, "rating" => rows.first["rating"], "reviews" => rows.first["reviews"], "category" => rows.first["category"], "cid" => rows.first["cid"]}.compact }
       .sort_by { -it["top3_points"] }.first(5)
     new(keyword: keyword, pull: pull, zip: profile.local_zip, center_lat: profile.local_center[0], center_lng: profile.local_center[1],
       radius_miles: profile.local_radius_miles, grid: profile.local_grid, points: points, leaders: leaders,
@@ -53,6 +53,7 @@ class Market::LocalScan < ApplicationRecord
 
   # The business's own rating and review count, as Maps showed them.
   def own_rating = points.find { it["rating"] }&.slice("rating", "reviews")
+  def own_cid = points.find { it["cid"] }&.dig("cid")
 
   def rows = points.group_by { it["row"] }.sort.map { |_, row| row.sort_by { it["col"] } }
   def missed? = found_points.zero?

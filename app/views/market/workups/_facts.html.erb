@@ -3,24 +3,96 @@
 <% record = brief.record %>
 <% if brief.kind == "keyword" %>
   <% now, before = Market::Ranking.latest_for([record])[record.id] %>
-  <% if now %>
+  <% checks = Market::AiCheck.latest_for([record])[record.id] || {} %>
+  <% facts = Market::SearchSnapshot.where(competitor_id: nil, kind: "keyword_facts").latest_first.first&.data&.dig("keywords", record.keyword) || {} %>
+  <% if facts.any? %>
     <dl class="market-facts text-small">
-      <dt>This site</dt><dd><%= market_position now.position, before&.position %><%= " with #{now.url}" if now.url %></dd>
-      <dt>Checked</dt><dd><%= l now.checked_at.to_date, format: :long %></dd>
-      <% if Array(now.features).any? %><dt>Also on the page</dt><dd><%= now.features.map { it.humanize.downcase }.join(", ") %></dd><% end %>
+      <% if facts["volume"] %><dt>Google searches a month</dt><dd><%= number_with_delimiter facts["volume"] %><%= " (#{facts["trend"]}% on the year)" if facts["trend"] %></dd><% end %>
+      <% if facts["ai_volume"] %><dt>AI searches a month</dt><dd><%= number_with_delimiter facts["ai_volume"] %></dd><% end %>
+      <% if facts["intent"] %><dt>What they want</dt><dd><%= facts["intent"].capitalize %></dd><% end %>
+      <% if facts["difficulty"] %><dt>Difficulty</dt><dd><%= facts["difficulty"] %>/100</dd><% end %>
+      <% if facts["cpc"] %><dt>Cost per click</dt><dd><%= market_money facts["cpc"] %></dd><% end %>
     </dl>
-    <table class="data-table market-evidence-table">
-      <thead><tr><th>#</th><th>Result</th></tr></thead>
-      <tbody>
-        <% Array(now.results).first(10).each do |row| %>
-          <%# herb:key row["position"] %>
-          <tr><td><%= row["position"] %></td><td><strong><%= row["domain"] %></strong><div class="text-small text-muted"><%= row["title"] %></div></td></tr>
-        <% end %>
-      </tbody>
-    </table>
-  <% else %>
-    <p class="text-small text-muted">Not checked yet: the next pull checks who ranks where.</p>
   <% end %>
+
+  <section class="stack stack--xs">
+    <h3 class="label">Google <%= market_source :live %></h3>
+    <% if now %>
+      <dl class="market-facts text-small">
+        <dt>This site</dt><dd><%= market_position now.position, before&.position %><%= " with #{now.url}" if now.url %></dd>
+        <dt>Checked</dt><dd><%= l now.checked_at.to_date, format: :long %></dd>
+        <% if Array(now.features).any? %><dt>Also on the page</dt><dd><%= now.features.map { it.humanize.downcase }.join(", ") %></dd><% end %>
+        <% if Array(now.local_pack).any? %><dt>Map pack</dt><dd><%= now.local_pack.map { "#{it["title"]}#{" (#{it["rating"]}★)" if it["rating"]}" }.join(" · ") %></dd><% end %>
+      </dl>
+      <table class="data-table market-evidence-table">
+        <thead><tr><th>#</th><th>Result</th></tr></thead>
+        <tbody>
+          <% Array(now.results).first(10).each do |row| %>
+            <%# herb:key row["position"] %>
+            <tr><td><%= row["position"] %></td><td><strong><%= row["domain"] %></strong><div class="text-small text-muted"><%= row["title"] %></div></td></tr>
+          <% end %>
+        </tbody>
+      </table>
+      <% if Array(now.questions).any? %>
+        <div class="stack stack--2xs">
+          <span class="text-small text-muted">People also ask: answer these on the page</span>
+          <ul class="market-changes text-small">
+            <% now.questions.each do |question| %>
+              <%# herb:key question %>
+              <li><%= question %></li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+    <% else %>
+      <p class="text-small text-muted">Not checked yet: the next pull checks who ranks where.</p>
+    <% end %>
+  </section>
+
+  <section class="stack stack--xs">
+    <h3 class="label">AI search <%= market_source :ai %></h3>
+    <% if checks.any? %>
+      <ul class="divided">
+        <% Market::AiCheck::PLATFORMS.each_key do |platform| %>
+          <%# herb:key platform %>
+          <% check = checks[platform] %>
+          <% next unless check %>
+          <li class="market-row stack stack--xs">
+            <span class="cluster cluster--sm">
+              <%= market_ai_mark check %>
+              <strong><%= check.platform_name %></strong>
+              <span class="text-small text-muted">
+                <% if !check.answered %>
+                  <%= check.error.presence || "No answer" %>
+                <% elsif check.mentioned %>
+                  Named <%= check.mention_rank.to_i.ordinalize %><%= ", and cited the site" if check.cited %>
+                <% elsif check.cited %>
+                  Cited the site without naming the business
+                <% else %>
+                  Answered without the business
+                <% end %>
+                · <%= time_ago_in_words(check.checked_at) %> ago
+              </span>
+            </span>
+            <% if check.named.any? %>
+              <span class="text-small">Named: <%= check.named.map { "#{it["rank"]}. #{it["name"]}" }.join(" · ") %></span>
+            <% end %>
+            <% if check.source_domains.any? %>
+              <span class="text-small text-muted">Cites: <%= check.source_domains.first(8).join(", ") %></span>
+            <% end %>
+            <% if check.answer.present? %>
+              <details class="market-closed text-small">
+                <summary>The answer<%= " (#{check.model})" if check.model.present? %></summary>
+                <div class="market-text market-answer"><%= check.answer %></div>
+              </details>
+            <% end %>
+          </li>
+        <% end %>
+      </ul>
+    <% else %>
+      <p class="text-small text-muted">Not asked yet: the next pull asks each AI chosen in Settings › Market.</p>
+    <% end %>
+  </section>
 <% elsif brief.kind == "map" then %>
   <% scan = Market::LocalScan.latest_for([record])[record.id]&.first %>
   <p class="text-small"><%= scan ? "Average #{scan.average_position} on Google Maps; in the top 3 at #{(scan.top3_share * scan.points.size).round} of #{scan.points.size} points." : "Not scanned yet." %>

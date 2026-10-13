@@ -246,6 +246,24 @@ RSpec.describe "Market", type: :request do
       expect(response.body.scan("Start a draft page").size).to eq(0)
     end
 
+    it "shows AI search beside Google on Search, every figure labelled with where it's from, and the answers in the sheet" do
+      keyword = Market::Keyword.track("plumber").first.first
+      Market::AiCheck.from_answer(keyword: keyword, platform: "chat_gpt", text: "Rival Plumbing is the pick.", sources: [{"domain" => "yelp.com", "url" => "https://yelp.com/x"}]).save!
+      Market::AiCheck.from_answer(keyword: keyword, platform: "claude", text: "Acme Plumbing (acme.example).", sources: [{"url" => "https://acme.example/"}]).save!
+      Market::Settings.update("sandbox" => "1", "ai_platforms" => %w[chat_gpt claude])
+
+      get market_search_path
+      expect(response.body).to include("AI search", "Asked each tracked search", "Named instead", "Rival Plumbing", "yelp.com", "Test mode",
+        "Google, checked live", "AI answers, checked live", "market-ai--named", "market-ai--missing")
+
+      get market_search_path(sheet: "keyword:#{keyword.id}")
+      expect(response.body).to include("ChatGPT", "Answered without the business", "Named 1st, and cited the site", "Cites: yelp.com")
+
+      get "/api/market/search", headers: api_headers(admin)
+      expect(response.parsed_body["tracked"].first["ai"]["claude"]).to include("named" => true, "cited" => true, "verdict" => "named_cited")
+      expect(response.parsed_body["sources"]).to include("ai", "estimate")
+    end
+
     it "keeps secrets out of Settings › Market" do
       patch settings_market_path, params: {market: {dataforseo_login: "api@example.com", dataforseo_password: "secret-pass", monthly_budget_dollars: "40.50",
                                                     refresh: "weekly"}}
@@ -254,7 +272,7 @@ RSpec.describe "Market", type: :request do
 
       get settings_market_path
       expect(response.body).not_to include("secret-pass")
-      expect(response.body).not_to match(/anthropic/i)
+      expect(response.body).not_to match(/anthropic_api_key|anthropic key/i)
       patch settings_market_path, params: {market: {dataforseo_password: "", monthly_budget_dollars: "10"}}
       expect(Market::Settings.current.dataforseo_password).to eq("secret-pass")
     end
