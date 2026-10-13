@@ -18,12 +18,24 @@ module Market
             resource :site_check, only: :create
             resources :competitors do
               resource :check, only: :create, controller: "competitors/checks"
+              resource :assessment, only: [:create, :update], controller: "competitors/assessments"
+              post "moves/:index", to: "competitors/moves#create", as: :move
             end
             resource :search, only: :show, controller: "searches"
             resources :search_pulls, only: [:index, :create], path: "search/pulls"
             resources :keywords, only: [:create, :destroy]
+            get "maps", to: "maps#show", as: :maps
+            get "report", to: "reports#show", as: :report
+            get "work", to: "workups#show", as: :work
+            resources :workups, only: :create do
+              post "changes/:index", to: "workups/changes#create", as: :change
+            end
             resources :findings, only: [:index, :update] do
               post :refresh, on: :collection
+              resource :opportunity, only: :create, controller: "finding_opportunities"
+            end
+            resources :changes, only: [] do
+              resource :opportunity, only: :create, controller: "change_opportunities"
             end
             resource :plan, only: :show
             resources :plans, only: :create
@@ -55,6 +67,10 @@ module Market
             resource :search, only: :show, controller: "searches"
             resources :search_pulls, only: [:index, :create], path: "search/pulls"
             resources :keywords, only: [:index, :create, :destroy]
+            get "report", to: "reports#show", as: :report
+            resources :workups, only: [:index, :show, :create] do
+              post "changes/:index", to: "workup_changes#create", as: :change
+            end
             resources :plans, only: [:index, :create]
             resources :opportunities, only: [:index, :create, :update, :destroy] do
               resource :page, only: :create, controller: "opportunity_pages"
@@ -75,10 +91,12 @@ module Market
       Cms::Plugins.menu :market, :market, label: "Market", icon: "chart", group: "Content", after: [:leads, :forms, :globals],
         path: -> { market_overview_path }, capability: "market:read"
       Cms::Plugins.submenu :market, :market, label: "Overview", path: -> { market_overview_path }, capability: "market:read"
-      Cms::Plugins.submenu :market, :market, label: "Findings", path: -> { market_findings_path }, capability: "market:read", after: "Overview"
+      Cms::Plugins.submenu :market, :market, label: "Report", path: -> { market_report_path }, capability: "market:read", after: "Overview"
+      Cms::Plugins.submenu :market, :market, label: "Findings", path: -> { market_findings_path }, capability: "market:read", after: "Report"
       Cms::Plugins.submenu :market, :market, label: "Competitors", path: -> { market_competitors_path }, capability: "market:read", after: "Findings"
       Cms::Plugins.submenu :market, :market, label: "Search", path: -> { market_search_path }, capability: "market:read", after: "Competitors"
-      Cms::Plugins.submenu :market, :market, label: "Plan", path: -> { market_plan_path }, capability: "market:read", after: "Search"
+      Cms::Plugins.submenu :market, :market, label: "Maps", path: -> { market_maps_path }, capability: "market:read", after: "Search"
+      Cms::Plugins.submenu :market, :market, label: "Plan", path: -> { market_plan_path }, capability: "market:read", after: "Maps"
       Cms::Plugins.submenu :market, :market, label: "Profile", path: -> { edit_market_profile_path }, capability: "market:write", after: "Plan"
 
       Cms::Plugins.permissions :market, "Market", %w[market:read market:write market:search],

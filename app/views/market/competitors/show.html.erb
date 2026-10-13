@@ -12,6 +12,8 @@
 <% end %>
 <%= render "layouts/shared/page_header", title: @competitor.name %>
 
+<%# What's known about them on the left; what to do about them beside it. %>
+<div class="grid grid--2 market-split">
 <div class="stack stack--lg">
   <section class="panel panel--padded stack stack--sm">
     <div class="cluster cluster--sm text-small">
@@ -34,8 +36,7 @@
     <% home = reading.home %>
     <% sitemap = reading.sitemap %>
     <% tools = market_tool_labels(reading) %>
-    <div class="grid grid--2">
-      <section class="panel panel--padded stack stack--sm">
+    <section class="panel panel--padded stack stack--sm">
         <h2 class="heading">Their home page</h2>
         <% if home.any? %>
           <dl class="market-facts text-small">
@@ -83,7 +84,6 @@
           <p class="text-small text-muted">No sitemap found: <%= reading.facts.dig("sitemap", "error") %></p>
         <% end %>
       </section>
-    </div>
   <% end %>
 
   <section class="panel panel--padded stack stack--sm">
@@ -118,4 +118,17 @@
             data: {turbo_confirm: "Stop watching #{@competitor.name} and forget its readings?"} %>
     </div>
   <% end %>
+</div>
+
+<div class="stack stack--lg market-detail">
+  <section class="panel panel--padded stack stack--sm" aria-label="Next steps">
+    <div class="row row--between">
+      <h2 class="heading">Next steps</h2>
+      <% if @steps.size.positive? %><span class="badge"><%= @steps.size %></span><% end %>
+    </div>
+    <%= render "market/shared/steps", steps: @steps.all, can_write: can_write, empty: "Nothing to do about #{@competitor.name} right now: they're read every week, and anything new shows here." %>
+  </section>
+
+  <%= render "market/competitors/assessment", competitor: @competitor, can_write: can_write %>
+</div>
 </div>

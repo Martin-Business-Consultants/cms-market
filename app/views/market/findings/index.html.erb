@@ -6,22 +6,54 @@
     <%= button_to "Work them out again", refresh_market_findings_path, class: "btn", form_class: "contents" %>
   <% end %>
 <% end %>
-<%= render "layouts/shared/page_header", title: "Findings" %>
+<%= render "layouts/shared/page_header", title: "Findings",
+      description: "What the competitors' websites, the site's own, the search data and the map say, worked out after each reading and pull, and every night. Open one to see the figures behind it and act on it." %>
 
-<%= render "layouts/shared/status_links", param: :state, current: @state,
-      options: [["Open", "open", @counts["open"]], ["Dismissed", "dismissed", @counts["dismissed"]], ["Resolved", "resolved", @counts["resolved"]],
-                ["All", "all", @counts.values.sum]] %>
-
-<section class="panel panel--padded stack stack--sm">
-  <p class="text-small text-muted">Worked out from the website readings, the search data and the tracked searches, after each one and every night, each with the exact figures behind it. For a harness: <code>cms get "/api/market/findings?since=<%= Time.current.utc.iso8601(6) %>"</code> answers only what changes after now.</p>
-  <% if @findings.any? %>
-    <ul class="divided">
-      <% @findings.each do |finding| %>
-        <%# herb:key finding.id %>
-        <%= render "market/findings/finding", finding: finding, can_write: can_write %>
+<%# The list and the open finding in one frame: opening one swaps the right-hand column, keeping the address. %>
+<turbo-frame id="market_findings" data-turbo-action="advance">
+  <div class="grid grid--2 market-split">
+    <section class="panel" aria-label="Findings">
+      <nav class="market-tabs" aria-label="Show">
+        <% [["open", "Open"], ["dismissed", "Dismissed"], ["resolved", "Resolved"], ["all", "All"]].each do |state, label| %>
+          <%# herb:key state %>
+          <%= link_to market_findings_path(state: ((state == "open") ? nil : state)), class: class_names("market-tab", "market-tab--current": @state == state),
+                aria: {current: ((@state == state) ? "page" : nil)} do %>
+            <%= label %> <span class="text-muted"><%= (state == "all") ? @counts.values.sum : @counts[state] %></span>
+          <% end %>
+        <% end %>
+      </nav>
+      <% if @findings.any? %>
+        <ul class="divided">
+          <% @findings.each do |finding| %>
+            <%# herb:key finding.id %>
+            <% current = finding == @finding %>
+            <li>
+              <%= link_to market_findings_path(state: ((@state == "open") ? nil : @state), finding: finding.id), class: class_names("market-item", "market-item--current": current),
+                    aria: {current: (current ? "true" : nil)} do %>
+                <span class="stack stack--2xs grow">
+                  <span class="text-ink"><%= finding.title %></span>
+                  <span class="text-small text-muted"><%= [finding.channel_label, "since #{l finding.first_seen_at.to_date, format: :short}"].compact.join(" · ") %></span>
+                </span>
+                <%= market_severity_tag finding %>
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+      <% else %>
+        <p class="empty-state">Nothing here. Findings come from the profile, competitors, website readings, search data and the map.</p>
       <% end %>
-    </ul>
-  <% else %>
-    <p class="text-small text-muted">Nothing here.</p>
-  <% end %>
-</section>
+      <p class="text-small text-muted market-harness">For a harness: <code>cms get "/api/market/findings?since=<%= Time.current.utc.iso8601(6) %>"</code> answers only what changes after now.</p>
+    </section>
+
+    <section class="panel panel--padded market-detail" aria-label="The finding">
+      <% if @finding %>
+        <%= render "market/findings/detail", finding: @finding, can_write: can_write, back: market_findings_path(state: ((@state == "open") ? nil : @state), finding: @finding.id) %>
+      <% else %>
+        <div class="stack stack--sm market-detail__empty">
+          <%= icon_tag "search", class: "text-faint" %>
+          <p class="text-muted">Open a finding to see the figures behind it, and act on it.</p>
+        </div>
+      <% end %>
+    </section>
+  </div>
+</turbo-frame>

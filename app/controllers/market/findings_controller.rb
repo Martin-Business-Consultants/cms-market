@@ -10,13 +10,14 @@ module Market
     def index
       @state = params[:state].presence_in(Finding::STATES + ["all"]) || "open"
       @findings = Finding.in_state(@state).by_severity.to_a
+      @finding = @findings.find { it.id.to_s == params[:finding].to_s } || (Finding.find_by(id: params[:finding]) if params[:finding].present?) || @findings.first
       @counts = {"open" => Finding.open.count, "dismissed" => Finding.in_state("dismissed").count, "resolved" => Finding.in_state("resolved").count}
     end
 
     def update
       finding = Finding.find(params[:id])
       params.require(:finding)[:state] == "dismissed" ? finding.dismiss(by: Current.user) : finding.reopen
-      redirect_back_or_to market_findings_path, notice: "#{finding.state == "dismissed" ? "Dismissed" : "Open again"}: #{finding.title}"
+      redirect_to back_or(market_findings_path(state: params[:state].presence, finding: finding.id)), notice: "#{(finding.state == "dismissed") ? "Dismissed" : "Open again"}: #{finding.title}"
     end
 
     def refresh

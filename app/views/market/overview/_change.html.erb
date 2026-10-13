@@ -1,0 +1,37 @@
+<%# locals: (reading:, can_write:, back:) %>
+<%# One competitor's changes in the overview's right-hand column: what changed, what their site is now, and what can be done: make it an opportunity, read the site again, open the competitor. %>
+<% competitor = reading.competitor %>
+<% opportunity = reading.opportunity %>
+<div class="stack stack--md">
+  <div class="stack stack--xs">
+    <div class="cluster cluster--sm">
+      <%= market_threat_tag competitor %>
+      <span class="text-small text-muted"><%= competitor.kind_label %> · read <%= l reading.taken_at.to_date, format: :long %><%= " · #{competitor.host}" if competitor.host %></span>
+    </div>
+    <h2 class="heading heading--lg"><%= competitor.name %> changed their website</h2>
+  </div>
+  <ul class="market-changes">
+    <% reading.differences.each_with_index do |change, index| %>
+      <%# herb:key index %>
+      <li><%= change %></li>
+    <% end %>
+  </ul>
+  <p class="text-small text-muted">Their site now: <%= market_reading_line reading %>.</p>
+  <% if can_write %>
+    <div class="cluster cluster--sm">
+      <% if opportunity %>
+        <%= link_to market_plan_path(anchor: "opportunity_#{opportunity.id}"), class: "btn btn--sm", data: {turbo_frame: "_top"} do %>
+          <%= icon_tag "check-circle" %> <span>On the plan: <%= opportunity.state %></span>
+        <% end %>
+      <% else %>
+        <%= button_to market_change_opportunity_path(reading), params: {return_to: back}, class: "btn btn--primary btn--sm", form_class: "contents" do %>
+          <%= icon_tag "add" %> <span>Make it an opportunity</span>
+        <% end %>
+      <% end %>
+      <% if competitor.domain %>
+        <%= button_to "Read again", market_competitor_check_path(competitor), class: "btn btn--sm", form_class: "contents", form: {data: {turbo_frame: "_top"}} %>
+      <% end %>
+      <%= link_to "#{competitor.name}'s website", market_competitor_path(competitor), class: "btn btn--sm", data: {turbo_frame: "_top"} %>
+    </div>
+  <% end %>
+</div>

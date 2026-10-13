@@ -3,8 +3,9 @@
 # One tracked search checked on Google Maps from every point of a grid across
 # the profile's ZIP and radius (Market::LocalGrid): at each point, where the
 # business showed (nil when it didn't, in the top 20) and the first three
-# names; across the area, its average position (counting a miss as 21), the
-# share of points it's in the top 3 at, and who leads the most points.
+# names (and its rating where it showed); across the area, its average position (counting a miss as 21), the
+# share of points it's in the top 3 at, and who leads the most points, with
+# their rating, review count and category.
 class Market::LocalScan < ApplicationRecord
   MISS = 21
   DEPTH = 20
@@ -32,11 +33,11 @@ class Market::LocalScan < ApplicationRecord
       results = Array(answer[:results])
       mine = results.find { ours?(it, profile) }
       {"row" => answer[:point].row, "col" => answer[:point].col, "lat" => answer[:point].lat, "lng" => answer[:point].lng,
-       "position" => mine&.dig("position"), "top" => results.first(3).map { it["title"] }}
+       "position" => mine&.dig("position"), "top" => results.first(3).map { it["title"] }, "rating" => mine&.dig("rating"), "reviews" => mine&.dig("reviews")}.compact
     end
     positions = points.map { it["position"] || MISS }
     leaders = answers.flat_map { Array(it[:results]).first(3).reject { |row| ours?(row, profile) } }
-      .group_by { it["title"] }.map { |title, rows| {"title" => title, "domain" => rows.first["domain"], "top3_points" => rows.size} }
+      .group_by { it["title"] }.map { |title, rows| {"title" => title, "domain" => rows.first["domain"], "top3_points" => rows.size, "rating" => rows.first["rating"], "reviews" => rows.first["reviews"], "category" => rows.first["category"]}.compact }
       .sort_by { -it["top3_points"] }.first(5)
     new(keyword: keyword, pull: pull, zip: profile.local_zip, center_lat: profile.local_center[0], center_lng: profile.local_center[1],
       radius_miles: profile.local_radius_miles, grid: profile.local_grid, points: points, leaders: leaders,
@@ -49,6 +50,9 @@ class Market::LocalScan < ApplicationRecord
     own = profile.domain.to_s
     (own.present? && (domain == own || domain.end_with?(".#{own}"))) || row["title"].to_s.casecmp?(profile.maps_name.to_s)
   end
+
+  # The business's own rating and review count, as Maps showed them.
+  def own_rating = points.find { it["rating"] }&.slice("rating", "reviews")
 
   def rows = points.group_by { it["row"] }.sort.map { |_, row| row.sort_by { it["col"] } }
   def missed? = found_points.zero?

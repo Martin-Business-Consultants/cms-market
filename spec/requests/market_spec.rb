@@ -38,7 +38,9 @@ RSpec.describe "Market", type: :request do
       Market::Keyword.track("plumber")
       [market_overview_path, market_findings_path, market_findings_path(state: "all"), market_competitors_path, market_competitor_path(rival),
         new_market_competitor_path, edit_market_competitor_path(rival), market_search_path, market_search_pulls_path, market_plan_path,
-        edit_market_profile_path, settings_market_path, dashboard_path].each do |path|
+        edit_market_profile_path, settings_market_path, dashboard_path, market_maps_path, market_report_path, market_report_path(period: "12m"),
+        market_search_path(sheet: "visibility:own"), market_search_path(sheet: "visibility:#{rival.id}"), market_search_path(sheet: "keyword:#{Market::Keyword.first.id}"),
+        market_work_path(subject: "opportunity:#{opportunity.id}")].each do |path|
         get path
         expect(response).to have_http_status(:ok), "#{path}: #{response.status}"
       end
@@ -84,12 +86,15 @@ RSpec.describe "Market", type: :request do
     it "shows each search's grid on the map, and saves the ZIP and radius" do
       Market::Profile.update({"local_zip" => "49503", "local_grid" => "3"}, MarketHelpers::FakeGeocoder)
       keyword = Market::Keyword.track("plumber").first.first
-      points = Market::LocalGrid.points([42.9632, -85.6528], radius_miles: 10, size: 3).each_with_index.map { |point, index| {point: point, results: [{"position" => index + 1, "title" => "Acme Plumbing"}]} }
+      points = Market::LocalGrid.points([42.9632, -85.6528], radius_miles: 10, size: 3).each_with_index.map { |point, index| {point: point, results: [{"position" => index + 1, "title" => "Acme Plumbing"}, {"position" => index + 2, "title" => "Drain Kings", "rating" => 4.8, "reviews" => 300}]} }
       Market::LocalScan.from_results(keyword: keyword, profile: Market::Profile.current, answers: points).save!
 
-      get market_search_path
-      expect(response.body).to include("3 × 3 points within 10 miles of 49503", "Average <strong>5.0</strong>")
+      get market_maps_path
+      expect(response.body).to include("3 × 3 points within 10 miles of 49503", "average <strong>5.0</strong>")
       expect(response.body.scan("market-grid__cell--top").size).to eq(3)
+
+      get market_maps_path(keyword: keyword.id, point: "0-0")
+      expect(response.body).to include("#1 here", "Acme Plumbing", "Who leads the area", "Drain Kings", "4.8★", "Watch Drain Kings", "Close the review gap")
 
       get edit_market_profile_path
       expect(response.body).to include("ZIP or postcode", "Centred on 49503, Grand Rapids")
@@ -125,6 +130,120 @@ RSpec.describe "Market", type: :request do
 
       expect(response).to redirect_to(edit_market_profile_path)
       expect(flash[:alert]).to include("fill in the rest here")
+    end
+
+    it "lists the findings beside the open one, whose figures and actions are in the second column" do
+      connect_search
+      Market::SearchSnapshot.create!(domain: "acme.example", kind: "keywords", data: {"keywords" => []}, taken_at: Time.current)
+      Market::SearchSnapshot.create!(competitor: rival, domain: "rival.example", kind: "keywords", taken_at: Time.current,
+        data: {"keywords" => [{"keyword" => "drain cleaning", "position" => 2, "volume" => 900}]})
+      Market::Finding.refresh
+      gap = Market::Finding.find_by!(kind: "keyword_gap")
+
+      get market_findings_path
+      expect(response.body).to include(%(<turbo-frame id="market_findings" data-turbo-action="advance">))
+      expect(response.body.scan("market-item--current").size).to eq(1)
+
+      get market_findings_path(finding: gap.id)
+      expect(response.body).to include(ERB::Util.html_escape(gap.title), "The figures", "Make it an opportunity", "Track these searches", "Rival Plumbing&#39;s website")
+      expect(response.body).to include(%(<table class="data-table market-evidence-table">), "drain cleaning")
+
+      post market_finding_opportunity_path(gap)
+      expect(response).to redirect_to(market_findings_path(finding: gap.id))
+      opportunity = Market::Opportunity.find_by!(finding_key: gap.key)
+      expect(opportunity).to have_attributes(channel: "seo", title: gap.title)
+      post market_finding_opportunity_path(gap)
+      expect(Market::Opportunity.where(finding_key: gap.key).count).to eq(1)
+
+      get market_findings_path(finding: gap.id)
+      expect(response.body).to include("On the plan: open")
+    end
+
+    it "has the overview's tabs side by side with the open one, where it's acted on" do
+      opportunity = Market::Opportunity.create!(title: "Publish town pages", channel: "local", impact: "high", effort: "low")
+      change = Market::Reading.where.not(competitor_id: nil).latest_first.first
+
+      get market_overview_path
+      expect(response.body).to include(%(<turbo-frame id="market_overview" data-turbo-action="advance">), "What the data says", "Best opportunities", "What competitors changed")
+
+      get market_overview_path(tab: "opportunities")
+      expect(response.body).to include("Publish town pages", "Start a draft page", "Done")
+      patch market_opportunity_path(opportunity), params: {opportunity: {state: "done"}, return_to: market_overview_path(tab: "opportunities", item: opportunity.id)}
+      expect(response).to redirect_to(market_overview_path(tab: "opportunities", item: opportunity.id))
+      expect(opportunity.reload.state).to eq("done")
+
+      get market_overview_path(tab: "changes", item: change.id)
+      expect(response.body).to include("Rival Plumbing changed their website", "Now runs Google Ads", "Make it an opportunity")
+      post market_change_opportunity_path(change), params: {return_to: "//evil.example"}
+      expect(response).to redirect_to(market_overview_path(tab: "changes", item: change.id))
+      expect(Market::Opportunity.find_by!(finding_key: "change:#{change.id}").title).to eq("Answer Rival Plumbing's changes")
+    end
+
+    it "says what to do next about each competitor, and sizes one up with the AI" do
+      get market_competitors_path
+      expect(response.body).to include("Next step")
+
+      get market_competitor_path(rival)
+      expect(response.body).to include("Next steps", "Sizing them up")
+
+      switch_plugin :ai, on: true
+      Ai::Settings.update("provider" => "opencode", "api_key" => "zen-key")
+      expect { post market_competitor_assessment_path(rival) }.to have_enqueued_job(Market::AssessmentJob)
+      allow(Ai).to receive(:structured).and_return("summary" => "They win on location pages.", "strengths" => ["80 pages"], "weaknesses" => ["No booking"],
+        "threat" => "medium", "threat_why" => "Close by", "moves" => [{"title" => "Add online booking", "channel" => "website", "detail" => "Book on the site.", "why" => "They have none", "impact" => "high", "effort" => "low"}])
+      rival.reload.assess!
+
+      get market_competitor_path(rival)
+      expect(response.body).to include("They win on location pages.", "Add online booking", "Make it an opportunity")
+
+      post market_competitor_move_path(rival, 0), params: {return_to: market_competitor_path(rival)}
+      expect(Market::Opportunity.last).to have_attributes(title: "Add online booking", channel: "website")
+      expect(response).to redirect_to(market_competitor_path(rival))
+
+      patch market_competitor_assessment_path(rival)
+      expect(rival.reload).to have_attributes(strengths: "80 pages", weaknesses: "No booking", threat: "medium")
+    end
+
+    it "opens a tracked search in a sheet, works it out with the AI, and sends a change to Approvals" do
+      switch_plugin :ai, on: true
+      switch_plugin :approvals, on: true
+      Ai::Settings.update("provider" => "opencode", "api_key" => "zen-key")
+      keyword = Market::Keyword.track("plumber").first.first
+      subject = "keyword:#{keyword.id}"
+
+      get market_search_path(sheet: subject)
+      expect(response.body).to include("dialog--sheet", "The search “plumber”", "Work it out with AI")
+
+      expect { post market_workups_path, params: {subject: subject, return_to: market_search_path(sheet: subject)} }.to have_enqueued_job(Market::WorkupJob)
+      expect(response).to redirect_to(market_search_path(sheet: subject))
+      allow(Ai).to receive(:structured).and_return("summary" => "Track the night ones.", "changes" => [
+        {"kind" => "track_searches", "title" => "Track night searches", "why" => "Demand", "page_path" => "", "page_title" => "", "meta_title" => "", "meta_description" => "",
+         "focus_keyword" => "", "json_ld" => "", "text_edits" => [], "slug" => "", "body_markdown" => "", "searches" => ["24 hour plumber"], "channel" => "seo"}
+      ])
+      workup = Market::Workup.last
+      workup.run!
+
+      get market_search_path(sheet: subject)
+      expect(response.body).to include("Track the night ones.", "Track them")
+      post market_workup_change_path(workup, 0), params: {return_to: market_search_path(sheet: subject)}
+      expect(Market::Keyword.pluck(:keyword)).to include("24 hour plumber")
+      get market_search_path(sheet: subject)
+      expect(response.body).to include("Done")
+    end
+
+    it "reports the market's health and how it's moved" do
+      Market::Keyword.track("plumber")
+      get market_report_path
+      expect(response.body).to include("Market health", "Search traffic", "Posting", "Content now", "market-bars")
+    end
+
+    it "gives an opportunity AI suggestions, not only a draft page" do
+      switch_plugin :ai, on: true
+      Ai::Settings.update("provider" => "opencode", "api_key" => "zen-key")
+      opportunity = Market::Opportunity.create!(title: "Ask for reviews", channel: "reviews")
+      get market_plan_path
+      expect(response.body).to include("Work it out with AI")
+      expect(response.body.scan("Start a draft page").size).to eq(0)
     end
 
     it "keeps secrets out of Settings › Market" do
@@ -246,6 +365,29 @@ RSpec.describe "Market", type: :request do
 
       get "/api/market/intake", headers: headers
       expect(response.parsed_body["answers"]).to include("business_name" => "Acme Plumbing")
+    end
+
+    it "answers the report, and runs work-ups and sends their changes on" do
+      get "/api/market/report", headers: headers
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body).to include("parts", "visibility", "rankings", "maps", "posting", "content", "findings_by_week")
+
+      post "/api/market/workups", params: {subject: "keyword:999"}, headers: headers
+      expect(response.parsed_body["error"]).to eq("refused")
+
+      switch_plugin :ai, on: true
+      Ai::Settings.update("provider" => "opencode", "api_key" => "zen-key")
+      keyword = Market::Keyword.track("plumber").first.first
+      post "/api/market/workups", params: {subject: "keyword:#{keyword.id}"}, headers: headers
+      expect(response).to have_http_status(:accepted)
+      id = response.parsed_body.dig("workup", "id")
+      Market::Workup.find(id).update!(state: "ready", answer: {"summary" => "x", "changes" => [{"kind" => "task", "title" => "Post weekly on the profile", "why" => "", "channel" => "local"}]})
+
+      get "/api/market/workups/#{id}", headers: headers
+      expect(response.parsed_body.dig("workup", "changes", 0)).to include("index" => 0, "kind" => "task", "sent" => nil)
+      post "/api/market/workups/#{id}/changes/0", headers: headers
+      expect(response).to have_http_status(:created)
+      expect(Market::Opportunity.last.title).to eq("Post weekly on the profile")
     end
 
     it "is listed in the manifest" do

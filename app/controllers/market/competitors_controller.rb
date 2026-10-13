@@ -14,10 +14,15 @@ module Market
       @readings = Reading.latest_for(@competitors)
       @own = Reading.own_latest
       @profile = Profile.current
+      findings = Finding.open.to_a
+      tracked = Keyword.pluck(:keyword)
+      settings = Settings.current
+      @steps = @competitors.to_h { [it.id, Competitor::NextSteps.new(it, settings: settings, findings: findings, tracked: tracked)] }
     end
 
     def show
       @readings = @competitor.readings.to_a
+      @steps = Competitor::NextSteps.new(@competitor)
     end
 
     def new

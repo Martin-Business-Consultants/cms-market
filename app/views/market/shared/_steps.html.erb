@@ -1,0 +1,27 @@
+<%# locals: (steps:, can_write:, empty: "Nothing to do here right now.") %>
+<%# Next steps, best first: each its title, why, and the one button (or link) that takes it. %>
+<% if steps.any? %>
+  <ol class="divided market-steps">
+    <% steps.each do |step| %>
+      <%# herb:key step.key %>
+      <li class="stack stack--xs market-step">
+        <span class="cluster cluster--sm">
+          <% if step.tone == :urgent %><span class="market-dot market-dot--on" aria-hidden="true"></span><% end %>
+          <strong><%= step.title %></strong>
+        </span>
+        <% if step.detail.present? %><span class="text-small text-muted market-text"><%= step.detail %></span><% end %>
+        <% if can_write || !step.button? %>
+          <div>
+            <% if step.button? %>
+              <%= button_to step.label, step.path, method: step.method, params: step.params, class: class_names("btn btn--sm", "btn--primary": step.tone == :urgent), form_class: "contents", form: {data: {turbo_frame: "_top"}} %>
+            <% else %>
+              <%= link_to step.label, step.path, class: "btn btn--sm", data: {turbo_frame: "_top"} %>
+            <% end %>
+          </div>
+        <% end %>
+      </li>
+    <% end %>
+  </ol>
+<% else %>
+  <p class="text-small text-muted"><%= empty %></p>
+<% end %>

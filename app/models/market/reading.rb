@@ -40,6 +40,16 @@ class Market::Reading < ApplicationRecord
   end
 
   def own? = competitor_id.nil?
+
+  # The opportunity made from this reading's changes, when there is one.
+  def opportunity = Market::Opportunity.where(finding_key: "change:#{id}").order(:id).last
+
+  # Its changes made an opportunity: answer what the competitor did.
+  def to_opportunity
+    opportunity || Market::Opportunity.create!(finding_key: "change:#{id}", channel: "seo", impact: "medium", effort: "medium", horizon: "now",
+      title: "Answer #{competitor.name}'s changes".truncate(200), detail: differences.join("; ").truncate(1000),
+      evidence: "#{competitor.name}'s website, read #{taken_at.to_date.to_fs(:long)}")
+  end
   def read? = error.blank?
   def home = (facts["home_page"].is_a?(Hash) && !facts["home_page"]["error"]) ? facts["home_page"] : {}
   def sitemap = (facts["sitemap"].is_a?(Hash) && !facts["sitemap"]["error"]) ? facts["sitemap"] : {}

@@ -1,0 +1,93 @@
+<%# locals: (subject:, workup:, can_write:, back:) %>
+<%# The AI's work-up of one thing: what to do, and each change with the button that sends it on — to Approvals (a page change, a post), a draft page, searches tracked, a task on the plan. %>
+<section class="stack stack--sm" aria-label="AI suggestions">
+  <div class="row row--between">
+    <h3 class="heading"><%= icon_tag "ai" %> Suggestions</h3>
+    <% if workup&.ready? %><span class="text-small text-muted">AI · <%= time_ago_in_words(workup.finished_at || workup.updated_at) %> ago</span><% end %>
+  </div>
+  <% if turbo_frame_request? && flash[:alert].present? %><p class="notice notice--danger text-small" role="alert"><%= flash[:alert] %></p><% end %>
+  <% if workup&.working? %>
+    <p class="market-notice text-small" data-controller="refresh" data-refresh-interval-value="5"><%= icon_tag "refresh" %> The AI is reading the facts and the site's pages. A minute or so.</p>
+  <% elsif workup&.failed? then %>
+    <p class="notice notice--danger text-small" role="status">It didn't finish: <%= workup.error.presence || "it stopped" %></p>
+  <% elsif workup.nil? then %>
+    <p class="text-small text-muted">The AI reads the facts here and the site's pages, and suggests changes: better titles and meta data, new wording, posts written in full, searches to track and tasks. Page changes and posts go to Approvals for a person to put live.</p>
+  <% end %>
+
+  <% if workup&.ready? %>
+    <% if workup.summary.present? %><p class="market-summary"><%= workup.summary %></p><% end %>
+    <ul class="divided">
+      <% workup.changes.each_with_index do |change, index| %>
+        <%# herb:key index %>
+        <% sent = workup.sent_for(index) %>
+        <li class="market-row stack stack--xs">
+          <span class="cluster cluster--sm">
+            <span class="badge"><%= market_change_kind change["kind"] %></span>
+            <strong><%= change["title"] %></strong>
+          </span>
+          <% if change["why"].present? %><span class="text-small text-muted market-text"><%= change["why"] %></span><% end %>
+          <% if change["kind"].in?(%w[update_page new_page new_post]) %>
+            <dl class="market-facts text-small">
+              <% if change["page_path"].present? %><dt>Page</dt><dd><code>/<%= (change["page_path"] == "home") ? "" : change["page_path"].delete_prefix("/") %></code></dd><% end %>
+              <% if change["page_title"].present? %><dt>Title</dt><dd><%= change["page_title"] %></dd><% end %>
+              <% if change["meta_title"].present? %><dt>Meta title</dt><dd><%= change["meta_title"] %> <span class="text-faint">(<%= change["meta_title"].size %>)</span></dd><% end %>
+              <% if change["meta_description"].present? %><dt>Meta description</dt><dd><%= change["meta_description"] %> <span class="text-faint">(<%= change["meta_description"].size %>)</span></dd><% end %>
+              <% if change["focus_keyword"].present? %><dt>Focus keyword</dt><dd><%= change["focus_keyword"] %></dd><% end %>
+              <% if change["json_ld"].present? %>
+                <dt>JSON-LD</dt>
+                <dd><details class="market-closed"><summary><%= Array.wrap(change["json_ld"]).filter_map { it["@type"] }.join(", ") %></summary><pre class="market-draft"><%= JSON.pretty_generate(change["json_ld"]) %></pre></details></dd>
+              <% end %>
+              <% Array(change["text_edits"]).each do |edit| %>
+                <%# herb:key edit["field"] %>
+                <dt><%= edit["field"].split(".").last.humanize %></dt><dd class="market-text"><%= edit["text"] %></dd>
+              <% end %>
+            </dl>
+            <% if change["body_markdown"].present? %>
+              <details class="market-closed text-small">
+                <summary>The post (<%= pluralize(change["body_markdown"].split.size, "word") %>)</summary>
+                <div class="market-text market-draft"><%= change["body_markdown"] %></div>
+              </details>
+            <% end %>
+          <% elsif change["kind"] == "track_searches" then %>
+            <ul class="market-chips text-small">
+<% Array(change["searches"]).each do |search| %>
+<%# herb:key search %>
+<li><%= search %></li>
+<% end %>
+</ul>
+          <% end %>
+          <div class="cluster cluster--sm">
+            <% if sent %>
+              <% if sent["approval_id"] %>
+                <%= link_to sent["path"] || "#", class: "btn btn--sm", data: {turbo_frame: "_top"} do %><%= icon_tag "check-circle" %> <span>In Approvals</span><% end %>
+              <% elsif sent["page_path"] && sent["kind"] == "new_page" then %>
+                <%= link_to edit_page_path(sent["page_path"]), class: "btn btn--sm", data: {turbo_frame: "_top"} do %><%= icon_tag "check-circle" %> <span>Draft page started</span><% end %>
+              <% elsif sent["opportunity_id"] then %>
+                <%= link_to market_overview_path(tab: "opportunities", item: sent["opportunity_id"]), class: "btn btn--sm", data: {turbo_frame: "_top"} do %><%= icon_tag "check-circle" %> <span>On the plan</span><% end %>
+              <% else %>
+                <span class="text-small text-muted"><%= icon_tag "check-circle" %> Done</span>
+              <% end %>
+            <% elsif can_write then %>
+              <%= button_to market_workup_change_path(workup, index), params: {return_to: back}, class: "btn btn--sm btn--primary", form_class: "contents" do %>
+                <%= {"update_page" => "Send to Approvals", "new_post" => "Send to Approvals", "new_page" => "Start a draft page", "track_searches" => "Track them", "task" => "Make it an opportunity"}[change["kind"]] %>
+              <% end %>
+            <% end %>
+          </div>
+        </li>
+      <% end %>
+    </ul>
+    <% if workup.changes.empty? %><p class="text-small text-muted">No changes suggested.</p><% end %>
+  <% end %>
+
+  <% if can_write && !workup&.working? %>
+    <% if Market::Plan.ai_available? %>
+      <div>
+        <%= button_to market_workups_path, params: {subject: subject, return_to: back}, class: class_names("btn btn--sm", "btn--primary": workup.nil?), form_class: "contents" do %>
+          <%= icon_tag "ai" %> <span><%= workup ? "Work it out again" : "Work it out with AI" %></span>
+        <% end %>
+      </div>
+    <% else %>
+      <p class="text-small text-muted"><%= Market::Plan.ai_unavailable_reason %>.</p>
+    <% end %>
+  <% end %>
+</section>

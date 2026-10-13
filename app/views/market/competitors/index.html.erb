@@ -16,6 +16,7 @@
     <thead>
       <tr>
         <th>Business</th>
+        <th>Next step</th>
         <th class="data-table__num">Pages</th>
         <th class="data-table__num">Posts <span class="text-muted">(90 days)</span></th>
         <th class="data-table__num">Locations</th>
@@ -34,6 +35,7 @@
           <strong><%= @profile.business_name %></strong>
           <div class="text-small text-muted"><%= @profile.domain ? (@own ? "This site · read #{time_ago_in_words(@own.taken_at)} ago" : "This site · not read yet") : "Set the site's address in Settings › General" %></div>
         </td>
+        <td></td>
         <%= render "market/competitors/reading_cells", reading: @own %>
       </tr>
       <% @competitors.each do |competitor| %>
@@ -46,10 +48,19 @@
               <%= market_threat_tag competitor %>
             </div>
           </td>
+          <% steps = @steps[competitor.id] %>
+          <td class="market-next">
+            <% if (step = steps.first) %>
+              <%= link_to market_competitor_path(competitor), class: "link text-small" do %><%= step.title.truncate(48) %><% end %>
+              <% if steps.size > 1 %><div class="text-small text-muted">and <%= pluralize(steps.size - 1, "more") %></div><% end %>
+            <% else %>
+              <span class="text-small text-muted">Nothing to do</span>
+            <% end %>
+          </td>
           <%= render "market/competitors/reading_cells", reading: @readings[competitor.id] %>
         </tr>
       <% end %>
-      <%= table_empty_row("No competitors yet. Add the businesses this one loses customers to, and the one it would most like to be.", columns: 7 + Market::MarketHelper::MARKET_COLUMNS.size) if @competitors.none? %>
+      <%= table_empty_row("No competitors yet. Add the businesses this one loses customers to, and the one it would most like to be.", columns: 8 + Market::MarketHelper::MARKET_COLUMNS.size) if @competitors.none? %>
     </tbody>
   </table>
 </section>

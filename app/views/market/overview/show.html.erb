@@ -41,70 +41,76 @@
     <% end %>
   </section>
 
-  <section class="panel panel--padded stack stack--sm">
-    <div class="row row--between">
-      <h2 class="heading">What the data says</h2>
-      <%= link_to "All findings", market_findings_path, class: "link text-small" %>
-    </div>
-    <% if @findings.any? %>
-      <ul class="divided">
-        <% @findings.first(8).each do |finding| %>
-          <%# herb:key finding.id %>
-          <%= render "market/findings/finding", finding: finding, can_write: can_write %>
-        <% end %>
-      </ul>
-    <% else %>
-      <p class="text-small text-muted">Nothing yet. Findings come from the profile, the competitors' websites and the site's own, and search data, worked out after each reading and every night.</p>
-    <% end %>
-  </section>
-
-  <div class="grid grid--2">
-    <section class="panel panel--padded stack stack--sm">
-      <div class="row row--between">
-        <h2 class="heading">Best opportunities</h2>
-        <%= link_to "Plan", market_plan_path(anchor: "opportunities"), class: "link text-small" %>
-      </div>
-      <% if @opportunities.any? %>
-        <ul class="divided">
-          <% @opportunities.each do |opportunity| %>
-            <%# herb:key opportunity.id %>
-            <li class="row row--between market-row">
-              <span class="grow">
-                <strong><%= opportunity.title %></strong>
-                <span class="text-small text-muted"><%= opportunity.channel_label %> · <%= opportunity.horizon_label %></span>
-              </span>
-              <span class="cluster cluster--sm"><%= market_impact_tag opportunity %><%= market_effort_tag opportunity %></span>
-            </li>
+  <%# The three tabs and the open item in one frame: opening one swaps the right-hand column, keeping the address. %>
+  <turbo-frame id="market_overview" data-turbo-action="advance">
+    <div class="grid grid--2 market-split">
+      <section class="panel" aria-label="<%= Market::OverviewController::TABS[@tab] %>">
+        <nav class="market-tabs" aria-label="Show">
+          <% Market::OverviewController::TABS.each do |tab, label| %>
+            <%# herb:key tab %>
+            <% count = {"findings" => @findings, "opportunities" => @opportunities, "changes" => @changes}[tab].size %>
+            <%= link_to market_overview_path(tab: ((tab == "findings") ? nil : tab)), class: class_names("market-tab", "market-tab--current": @tab == tab),
+                  aria: {current: ((@tab == tab) ? "page" : nil)} do %>
+              <%= label %> <span class="text-muted"><%= count %></span>
+            <% end %>
           <% end %>
-        </ul>
-      <% else %>
-        <p class="text-small text-muted">None open. Draft a plan to find them, or add one on the Plan page.</p>
-      <% end %>
-    </section>
-
-    <section class="panel panel--padded stack stack--sm">
-      <div class="row row--between">
-        <h2 class="heading">What competitors changed</h2>
-        <span class="text-small text-muted">Last 30 days</span>
-      </div>
-      <% if @changes.any? %>
-        <ul class="divided">
-          <% @changes.each do |reading| %>
-            <%# herb:key reading.id %>
-            <li class="stack stack--xs market-row">
-              <span><%= link_to reading.competitor.name, market_competitor_path(reading.competitor), class: "title-link" %> <span class="text-small text-muted"><%= l reading.taken_at.to_date, format: :short %></span></span>
-              <ul class="market-changes text-small">
-                <% reading.differences.first(4).each_with_index do |change, index| %>
-                  <%# herb:key index %>
-                  <li><%= change %></li>
+        </nav>
+        <% if @items.any? %>
+          <ul class="divided">
+            <% @items.each do |item| %>
+              <%# herb:key item.id %>
+              <% current = item == @item %>
+              <li>
+                <%= link_to market_overview_path(tab: ((@tab == "findings") ? nil : @tab), item: item.id), class: class_names("market-item", "market-item--current": current),
+                      aria: {current: (current ? "true" : nil)} do %>
+                  <% if @tab == "findings" %>
+                    <span class="stack stack--2xs grow">
+                      <span class="text-ink"><%= item.title %></span>
+                      <span class="text-small text-muted"><%= [item.channel_label, "since #{l item.first_seen_at.to_date, format: :short}"].compact.join(" · ") %></span>
+                    </span>
+                    <%= market_severity_tag item %>
+                  <% elsif @tab == "opportunities" then %>
+                    <span class="stack stack--2xs grow">
+                      <span class="text-ink"><%= item.title %></span>
+                      <span class="text-small text-muted"><%= item.channel_label %> · <%= item.horizon_label %><%= " · planned" if item.state == "planned" %></span>
+                    </span>
+                    <span class="cluster cluster--sm"><%= market_impact_tag item %><%= market_effort_tag item %></span>
+                  <% else %>
+                    <span class="stack stack--2xs grow">
+                      <span class="text-ink"><%= item.competitor.name %></span>
+                      <span class="text-small text-muted"><%= item.differences.first %><%= " and #{item.differences.size - 1} more" if item.differences.size > 1 %></span>
+                    </span>
+                    <span class="text-small text-muted nowrap"><%= l item.taken_at.to_date, format: :short %></span>
+                  <% end %>
                 <% end %>
-              </ul>
-            </li>
-          <% end %>
-        </ul>
-      <% else %>
-        <p class="text-small text-muted">Nothing the weekly readings noticed. <%= link_to "Add competitors", market_competitors_path, class: "link" %> with their websites to watch them.</p>
-      <% end %>
-    </section>
-  </div>
+              </li>
+            <% end %>
+          </ul>
+        <% else %>
+          <p class="empty-state">
+            <% if @tab == "findings" %>Nothing yet. Findings come from the profile, the competitors' websites and the site's own, search data and the map, worked out after each reading and every night.
+            <% elsif @tab == "opportunities" then %>None open. <%= link_to "Draft a plan", market_plan_path, class: "link", data: {turbo_frame: "_top"} %> to find them, or make one from a finding.
+            <% else %>Nothing the weekly readings noticed in the last 60 days. <%= link_to "Add competitors", market_competitors_path, class: "link", data: {turbo_frame: "_top"} %> with their websites to watch them.
+            <% end %>
+          </p>
+        <% end %>
+      </section>
+
+      <section class="panel panel--padded market-detail" aria-label="The one open">
+        <% back = market_overview_path(tab: ((@tab == "findings") ? nil : @tab), item: @item&.id) %>
+        <% if @item.nil? %>
+          <div class="stack stack--sm market-detail__empty">
+            <%= icon_tag "chart", class: "text-faint" %>
+            <p class="text-muted">Open one to see it in full and act on it.</p>
+          </div>
+        <% elsif @tab == "findings" then %>
+          <%= render "market/findings/detail", finding: @item, can_write: can_write, back: back %>
+        <% elsif @tab == "opportunities" then %>
+          <%= render "market/overview/opportunity", opportunity: @item, can_write: can_write, can_pages: Current.user.can?("pages:write"), back: back %>
+        <% else %>
+          <%= render "market/overview/change", reading: @item, can_write: can_write, back: back %>
+        <% end %>
+      </section>
+    </div>
+  </turbo-frame>
 </div>

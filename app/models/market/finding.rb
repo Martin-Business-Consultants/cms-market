@@ -30,6 +30,29 @@ class Market::Finding < ApplicationRecord
   def state = resolved_at ? "resolved" : (dismissed_at ? "dismissed" : "open")
   def channel_label = Market::Opportunity::CHANNELS[channel]
 
+  # The opportunity made from it, when there is one.
+  def opportunity = Market::Opportunity.where(finding_key: key).order(:id).last
+
+  # Turns it into an opportunity on the plan: its words, its channel, sized by how much it matters.
+  def to_opportunity
+    opportunity || Market::Opportunity.create!(finding_key: key, title: title.truncate(200), channel: channel.presence_in(Market::Opportunity::CHANNELS.keys) || "seo",
+      detail: detail, evidence: "From a finding (#{kind.humanize.downcase}): #{JSON.generate(evidence).truncate(500)}",
+      impact: {"high" => "high", "medium" => "medium"}.fetch(severity, "low"), effort: "medium", horizon: (severity == "high") ? "now" : "next")
+  end
+
+  # Where in Market its subject is: a competitor, the search data, the map, the profile.
+  def related
+    domain = evidence["domain"]
+    competitor = domain && Market::Competitor.find_by(domain: domain)
+    case kind
+    when /\Alocal/ then [:local, nil]
+    when "keyword_gap", "competitor_surge", "site_changes" then competitor ? [:competitor, competitor] : [:search, nil]
+    when "profile_gaps" then [:profile, nil]
+    when "no_competitors", "location_pages", "content_freshness", "conversion_tools", "competitor_ads", "stale_site" then [:competitors, nil]
+    else [:search, nil]
+    end
+  end
+
   def dismiss(by:) = update(dismissed_at: Time.current, dismissed_by_name: by.try(:name).presence || by.try(:email), changed_at: Time.current)
   def reopen = update(dismissed_at: nil, dismissed_by_name: nil, changed_at: Time.current)
 

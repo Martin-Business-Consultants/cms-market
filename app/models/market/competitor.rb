@@ -7,6 +7,8 @@ class Market::Competitor < ApplicationRecord
   KINDS = {"direct" => "Direct", "indirect" => "Indirect", "aspirational" => "Aspirational"}.freeze
   THREATS = %w[high medium low].freeze
 
+  include Assessable
+
   has_many :readings, -> { latest_first }, dependent: :delete_all, inverse_of: :competitor
   has_many :search_snapshots, dependent: :delete_all
 

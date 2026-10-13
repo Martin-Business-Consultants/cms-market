@@ -10,7 +10,7 @@ module Market
       added, skipped = Keyword.track(attributes[:keywords], source: attributes[:source])
       message = added.any? ? "Tracking #{added.map { "“#{it.keyword}”" }.to_sentence}" : "Nothing new to track"
       message += " (#{skipped} already tracked or over the limit)" if skipped.positive?
-      redirect_to market_search_path(anchor: "tracked"), (added.any? ? :notice : :alert) => message
+      redirect_to back_or(market_search_path(anchor: "tracked")), (added.any? ? :notice : :alert) => message
     end
 
     def destroy

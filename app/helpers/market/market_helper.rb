@@ -91,6 +91,40 @@ module Market
       safe_join([now.to_s, " ", tag.span("#{(now < before) ? "↑" : "↓"}#{(before - now).abs}", class: (now < before) ? "market-up" : "market-down")])
     end
 
+    def market_channel_label(channel) = Market::Opportunity::CHANNELS[channel]
+    def market_change_kind(kind) = Market::Workup::KINDS[kind]
+
     def market_money(amount) = "$#{format("%.2f", amount.to_d)}"
+
+    # A finding's evidence, readable: a hash as labelled facts, a list of like
+    # records as a small table, a list of words as chips, figures with commas.
+    def market_evidence(value, depth: 0)
+      case value
+      when Hash
+        tag.dl(class: "market-facts text-small") do
+          safe_join(value.compact_blank.map { |key, item| safe_join([tag.dt(key.to_s.humanize), tag.dd(market_evidence(item, depth: depth + 1))]) })
+        end
+      when Array
+        if value.all?(Hash) && value.any?
+          columns = value.flat_map(&:keys).uniq.first(6)
+          tag.table(class: "data-table market-evidence-table") do
+            safe_join([
+              tag.thead(tag.tr(safe_join(columns.map { tag.th(it.to_s.humanize) }))),
+              tag.tbody(safe_join(value.first(15).map { |row| tag.tr(safe_join(columns.map { tag.td(market_evidence(row[it], depth: depth + 1)) })) }))
+            ])
+          end
+        elsif value.any?
+          tag.ul(safe_join(value.first(20).map { tag.li(it.to_s) }), class: "market-chips text-small")
+        else
+          tag.span("None", class: "text-muted")
+        end
+      when Float then number_with_delimiter(value.round(2))
+      when Integer then number_with_delimiter(value)
+      when true then "Yes"
+      when false then "No"
+      when nil then tag.span("—", class: "text-faint")
+      else value.to_s
+      end
+    end
   end
 end

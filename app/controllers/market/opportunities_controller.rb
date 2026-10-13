@@ -13,7 +13,7 @@ module Market
     def create
       opportunity = Opportunity.new(params.require(:opportunity).permit(:title, :channel, :detail, :evidence, :impact, :effort, :horizon))
       if opportunity.save
-        redirect_to market_plan_path(anchor: "opportunities"), notice: "Added “#{opportunity.title}”"
+        redirect_to back_or(market_plan_path(anchor: "opportunities")), notice: "Added “#{opportunity.title}”"
       else
         redirect_to market_plan_path(anchor: "opportunities"), alert: opportunity.errors.full_messages.to_sentence
       end
@@ -29,13 +29,13 @@ module Market
       when "open" then opportunity.reopen
       end
       opportunity.update(attributes) if attributes.present?
-      redirect_back_or_to market_plan_path(anchor: "opportunities"), notice: "“#{opportunity.title}”: #{opportunity.state}"
+      redirect_to back_or(market_plan_path(anchor: "opportunities")), notice: "“#{opportunity.title}”: #{opportunity.state}"
     end
 
     def destroy
       opportunity = Opportunity.find(params[:id])
       opportunity.destroy!
-      redirect_back_or_to market_plan_path(anchor: "opportunities"), notice: "Deleted “#{opportunity.title}”"
+      redirect_to back_or(market_plan_path(anchor: "opportunities")), notice: "Deleted “#{opportunity.title}”"
     end
   end
 end

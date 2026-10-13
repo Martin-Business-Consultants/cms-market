@@ -1,0 +1,46 @@
+<%# locals: (opportunity:, can_write:, can_pages:, back:) %>
+<%# One opportunity in the overview's right-hand column: what, why and how big, and what can be done: work it out with the AI, start a draft page, mark it done, dismiss it, open it again. %>
+<div class="stack stack--md">
+  <div class="stack stack--xs">
+    <div class="cluster cluster--sm">
+      <%= market_impact_tag opportunity %>
+      <%= market_effort_tag opportunity %>
+      <% unless opportunity.state == "open" %><%= status_tag opportunity.state %><% end %>
+      <span class="text-small text-muted"><%= opportunity.channel_label %> · <%= opportunity.horizon_label %><%= " · from a plan" if opportunity.plan_id %></span>
+    </div>
+    <h2 class="heading heading--lg"><%= opportunity.title %></h2>
+    <% if opportunity.detail.present? %><p class="market-text"><%= opportunity.detail %></p><% end %>
+    <% if opportunity.evidence.present? %><p class="text-small text-muted market-text">Why: <%= opportunity.evidence %></p><% end %>
+  </div>
+  <% if opportunity.page %>
+    <p class="text-small"><%= link_to edit_page_path(opportunity.page.path), class: "link", data: {turbo_frame: "_top"} do %><%= icon_tag "document" %> <%= opportunity.page.title %> (<%= opportunity.page.status %>)<% end %></p>
+  <% end %>
+  <% if can_write %>
+    <div class="cluster cluster--sm">
+      <% if opportunity.active? %>
+        <% subject = "opportunity:#{opportunity.id}" %>
+        <% if Market::Workup.where(subject: subject).exists? %>
+          <%= link_to market_work_path(subject: subject), class: "btn btn--primary btn--sm", data: {turbo_frame: "_top"} do %>
+            <%= icon_tag "ai" %> <span>Suggestions</span>
+          <% end %>
+        <% elsif Market::Plan.ai_available? then %>
+          <%= button_to market_workups_path, params: {subject: subject, return_to: market_work_path(subject: subject)}, class: "btn btn--primary btn--sm", form_class: "contents", form: {data: {turbo_frame: "_top"}},
+                title: "Changes to the site's pages and meta data, posts, searches to track and tasks, for a person to send to Approvals" do %>
+            <%= icon_tag "ai" %> <span>Work it out with AI</span>
+          <% end %>
+        <% end %>
+        <% if can_pages && opportunity.page.nil? && opportunity.channel.in?(%w[seo content website local]) %>
+          <%= button_to market_opportunity_page_path(opportunity), class: "btn btn--sm", form_class: "contents", form: {data: {turbo_frame: "_top"}}, title: "A blank draft page titled for it" do %>
+            <%= icon_tag "document" %> <span>Start a draft page</span>
+          <% end %>
+        <% end %>
+        <%= button_to "Done", market_opportunity_path(opportunity), method: :patch, params: {opportunity: {state: "done"}, return_to: back}, class: "btn btn--sm", form_class: "contents" %>
+        <%= button_to "Dismiss", market_opportunity_path(opportunity), method: :patch, params: {opportunity: {state: "dismissed"}, return_to: back}, class: "btn btn--sm btn--plain", form_class: "contents" %>
+      <% else %>
+        <span class="text-small text-muted"><%= opportunity.state.capitalize %><%= " by #{opportunity.decided_by_name}" if opportunity.decided_by_name %></span>
+        <%= button_to "Open again", market_opportunity_path(opportunity), method: :patch, params: {opportunity: {state: "open"}, return_to: back}, class: "btn btn--sm btn--plain", form_class: "contents" %>
+      <% end %>
+      <%= link_to "The plan", market_plan_path(anchor: "opportunity_#{opportunity.id}"), class: "btn btn--sm", data: {turbo_frame: "_top"} %>
+    </div>
+  <% end %>
+</div>

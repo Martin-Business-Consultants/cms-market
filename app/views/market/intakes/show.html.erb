@@ -14,7 +14,7 @@
     <p class="market-notice" data-controller="refresh" data-refresh-interval-value="4">
       <%= icon_tag "refresh" %> Reading <%= @profile.domain || "the site" %> and what's in the CMS, then filling in the profile. A minute or two.
     </p>
-  <% elsif @intake.failed? %>
+  <% elsif @intake.failed? then %>
     <p class="notice notice--danger" role="alert">The AI couldn't fill in the profile: <%= @intake.error %>. <%= link_to "Fill it in by hand", edit_market_profile_path, class: "link" %>.</p>
   <% else %>
     <section class="panel panel--padded stack stack--sm">

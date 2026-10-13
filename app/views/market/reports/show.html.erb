@@ -1,0 +1,109 @@
+<% @page_title = "Report" %>
+<% report = @report %>
+
+<% content_for :page_actions do %>
+  <nav class="cluster cluster--sm" aria-label="Period">
+    <% Market::ReportsController::PERIODS.each_key do |period| %>
+      <%# herb:key period %>
+      <%= link_to period.upcase, market_report_path(period: period), class: class_names("btn btn--sm", "btn--primary": period == @period), aria: {current: ((period == @period) ? "page" : nil)} %>
+    <% end %>
+  </nav>
+<% end %>
+<%= render "layouts/shared/page_header", title: "Report" %>
+
+<div class="stack stack--lg">
+  <section class="panel panel--padded market-health">
+    <div class="stack stack--xs market-health__score">
+      <span class="label">Market health</span>
+      <% if report.score %>
+        <strong class="market-health__number"><%= report.score %></strong>
+        <span class="text-small text-muted"><%= report.grade %> · out of 100</span>
+      <% else %>
+        <strong class="market-health__number text-faint">—</strong>
+        <span class="text-small text-muted">Read the site and its competitors, and pull search data, to score it.</span>
+      <% end %>
+    </div>
+    <ul class="divided market-health__parts">
+      <% report.parts.each do |part| %>
+        <%# herb:key part.key %>
+        <li class="market-row stack stack--2xs">
+          <span class="row row--between">
+            <%= link_to part.label, public_send(part.path), class: "title-link" %>
+            <strong><%= part.score %></strong>
+          </span>
+          <%= market_meter part.score, label: "#{part.label}: #{part.score} of 100" %>
+          <span class="text-small text-muted"><%= part.detail %></span>
+        </li>
+      <% end %>
+    </ul>
+  </section>
+
+  <div class="grid grid--2">
+    <section class="panel panel--padded stack stack--sm">
+      <h2 class="heading">Search traffic</h2>
+      <p class="text-small text-muted">Estimated visits a month from Google, the site beside each competitor (DataForSEO).</p>
+      <%= market_line_chart report.visibility, label: "Estimated monthly search traffic" %>
+    </section>
+
+    <section class="panel panel--padded stack stack--sm">
+      <h2 class="heading">The site's keywords</h2>
+      <p class="text-small text-muted">Every search it ranks for, and those on page one.</p>
+      <%= market_line_chart report.own_keywords, label: "The site's keywords" %>
+    </section>
+
+    <section class="panel panel--padded stack stack--sm">
+      <h2 class="heading">Tracked searches</h2>
+      <p class="text-small text-muted">Average position across the searches tracked (up is better), and how many are on page one.</p>
+      <% average, top10 = report.rankings %>
+      <%= market_line_chart [average], label: "Average position of the tracked searches", lower_is_better: true %>
+      <%= market_line_chart [top10], label: "Tracked searches on page one" %>
+    </section>
+
+    <section class="panel panel--padded stack stack--sm">
+      <h2 class="heading">Google Maps</h2>
+      <p class="text-small text-muted">Average position across the area (up is better), and the share of points in the top 3. <%= link_to "Maps", market_maps_path, class: "link" %></p>
+      <% average, share = report.maps %>
+      <%= market_line_chart [average], label: "Average position on Google Maps", lower_is_better: true %>
+      <%= market_line_chart [share], label: "Share of points in the map's top 3" %>
+    </section>
+
+    <section class="panel panel--padded stack stack--sm">
+      <h2 class="heading">Posting</h2>
+      <p class="text-small text-muted">Posts in the last 90 days, at each weekly reading.</p>
+      <%= market_line_chart report.posting, label: "Posts in the last 90 days" %>
+    </section>
+
+    <section class="panel panel--padded stack stack--sm">
+      <h2 class="heading">Content now</h2>
+      <% if report.content.any? %>
+        <h3 class="label">Pages</h3>
+        <%= market_bars report.content.map { [it[0], it[1], it[5]] }, label: "Pages" %>
+        <h3 class="label">Location pages</h3>
+        <%= market_bars report.content.map { [it[0], it[3], it[5]] }, label: "Location pages" %>
+        <h3 class="label">Service pages</h3>
+        <%= market_bars report.content.map { [it[0], it[4], it[5]] }, label: "Service pages" %>
+      <% else %>
+        <p class="text-small text-muted">No websites read yet.</p>
+      <% end %>
+    </section>
+
+    <section class="panel panel--padded stack stack--sm">
+      <h2 class="heading">Findings</h2>
+      <p class="text-small text-muted">Found and resolved each week. Open now: <%= Market::Finding::SEVERITIES.map { "#{report.open_findings[it].to_i} #{(it == "info") ? "worth knowing" : it}" }.join(", ") %>. <%= link_to "Findings", market_findings_path, class: "link" %></p>
+      <%= market_line_chart report.findings_by_week, label: "Findings found and resolved each week", format: ->(value) { value.round.to_s } %>
+    </section>
+
+    <section class="panel panel--padded stack stack--sm">
+      <h2 class="heading">The plan</h2>
+      <% opportunities = report.opportunities %>
+      <%= market_bars Market::Opportunity::STATES.map { [it.capitalize, opportunities[it].to_i, it == "done"] }, label: "Opportunities by state" %>
+      <% spend = report.spend %>
+      <% if spend.any? %>
+        <h3 class="label">DataForSEO spend</h3>
+        <%= market_bars spend.map { [l(it[0], format: "%b %Y"), it[1].round(2).to_f, false] }, label: "DataForSEO spend by month" %>
+      <% end %>
+      <%= link_to "The plan", market_plan_path, class: "link text-small" %>
+    </section>
+  </div>
+  <p class="text-small text-muted">For a harness: <code>cms get /api/market/report</code> answers the same figures as JSON.</p>
+</div>

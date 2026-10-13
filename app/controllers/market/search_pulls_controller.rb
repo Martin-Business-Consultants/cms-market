@@ -12,11 +12,11 @@ module Market
 
     def create
       refusal = SearchPull.refusal
-      return redirect_to(market_search_path, alert: refusal) if refusal
+      return redirect_to(back_or(market_search_path), alert: refusal) if refusal
 
       pull = SearchPull.create!(user: Current.user, force: ActiveModel::Type::Boolean.new.cast(params.dig(:pull, :force)) || false)
       pull.run_later
-      redirect_to market_search_path, notice: "Pulling search data: a minute or two. At most $#{format("%.2f", SearchPull.ceiling)}."
+      redirect_to back_or(market_search_path), notice: "Pulling search data: a minute or two. At most $#{format("%.2f", SearchPull.ceiling)}."
     end
   end
 end

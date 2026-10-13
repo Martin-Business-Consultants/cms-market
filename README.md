@@ -37,12 +37,22 @@ The big picture behind the site's SEO and marketing, beside the site it's about.
   - **when you choose:** when someone asks, or every week or month.
 - **Local search** works from a ZIP (or postcode) and a radius in miles (Market › Profile), not the whole
   country. On every pull, each tracked search is checked on Google Maps from a grid of points across the
-  area (3×3, 5×5 or 7×7). The Search page shows each grid with the business's map position at every
-  point: green for the top 3, amber for 4 to 10, red for further or not found. Beside it are the average
-  position, the share of points it's in the top 3 at, and who leads the most points. Organic searches
+  area (3×3, 5×5 or 7×7). **Maps** lists the searches beside the open one: its grid with the business's
+  map position at every point (green for the top 3, amber for 4 to 10, red for further or not found; choose
+  a point for who's shown there), the average position, the share of points in the top 3, who leads the
+  area with their rating and reviews (watch them in one click), next steps (close the review gap, win the
+  part of the area it's weak in), and AI suggestions. Organic searches
   run from the ZIP too. The ZIP is located once with OpenStreetMap, and the business is found among the
   map results by its website or its name on Google Maps. Findings flag a search where it isn't on the map
   anywhere in the area, where it's weak across much of it, and where it slips.
+- **Report** gives the market's health in one score out of 100, made of search visibility, the tracked
+  searches, Google Maps, content and the open findings, and charts how each has moved: search traffic
+  against each competitor, the site's keywords, tracked positions, the map, posting, content beside
+  theirs, findings found and resolved, the plan's progress and what DataForSEO cost.
+- **Competitors** each have next steps (read them, pull their search data, size them up, act on the
+  findings about them, track the searches they win) and can be **sized up by the AI**: how they win,
+  strengths and weaknesses (saved onto the competitor in one click), the threat, and moves to beat them,
+  each an opportunity in one click.
 - **Findings** say what all of it means, with the exact figures and where they came from. For example:
   keywords a competitor is on page one for and the site isn't, search traffic falling or a competitor's
   surging, tracked searches dropping, competitors outranking, running ads, publishing or with a page per
@@ -52,8 +62,14 @@ The big picture behind the site's SEO and marketing, beside the site it's about.
   OpenCode Zen, set up once in Settings › AI), findings first, in the
   brand's voice (Settings › Brand context). It gives the state of the market, the angle to win on, and
   opportunities by channel, impact, effort and when. It can also suggest an industry, competitors and
-  searches to track, each taken in one click after a person checks it. **An opportunity starts a draft
-  page in one click**, so the work begins in the CMS. Nothing on the site changes until a person acts.
+  searches to track, each taken in one click after a person checks it.
+- **AI suggestions** turn the plan into changes to the site. Open a site or a tracked search on the
+  Search page (a sheet), a search on Maps, or an opportunity, and the AI reads the facts, the plan's big
+  picture and angle, the brand brief and the site's pages, and suggests changes: a page's title, meta
+  title and description, focus keyword, JSON-LD and wording; posts written in full; new pages; searches to
+  track; tasks off the site. **Page changes and posts go to [Approvals](https://github.com/Martin-Business-Consultants/cms-approvals)**,
+  where a person compares them with what's live, edits and puts them live; nothing here publishes.
+  A new page starts as a draft, searches are tracked, and a task goes on the plan.
 
 ## For agents and a local harness
 
@@ -68,6 +84,10 @@ Everything is at `/api/market/…`, listed in `/api/manifest`, so the `cms` CLI 
     cms post /api/market/search/pulls '{}'                      # spends from the month's budget (market:search)
     cms post /api/market/plans '{}'                             # the AI drafts a plan (a minute or two)
     cms post /api/market/opportunities/12/page '{}'             # a draft page for an opportunity
+    cms get /api/market/report                                  # the health score, its parts and every charted series
+    cms post /api/market/workups '{"subject":"keyword:4"}'      # AI suggestions: keyword:<id>, map:<keyword id>, visibility:own|<competitor id>, opportunity:<id>
+    cms get /api/market/workups/7                               # its changes, and what each became
+    cms post /api/market/workups/7/changes/0 '{}'               # send one on: page changes and posts are held in Approvals
 
 A refusal says why, with HTTP 409 (`{"error":"refused","message":"Connect DataForSEO in Settings › Market first"}`).
 

@@ -1,0 +1,76 @@
+<%# locals: (finding:, can_write:, back:) %>
+<%# One finding in the right-hand column: what it says, the figures behind it, where they came from, and what can be done: make it an opportunity, track its searches, go to what it's about, dismiss it or open it again. %>
+<% opportunity = finding.opportunity %>
+<% gap = (finding.kind == "keyword_gap") ? Array(finding.evidence["keywords"]) : [] %>
+<% place, record = finding.related %>
+<div class="stack stack--md">
+  <div class="stack stack--xs">
+    <div class="cluster cluster--sm">
+      <%= market_severity_tag finding %>
+      <% unless finding.state == "open" %><%= status_tag finding.state %><% end %>
+      <span class="text-small text-muted"><%= [finding.channel_label, "first seen #{l finding.first_seen_at.to_date, format: :long}", ("changed #{time_ago_in_words(finding.changed_at)} ago" if finding.changed_at > finding.first_seen_at)].compact.join(" · ") %></span>
+    </div>
+    <h2 class="heading heading--lg"><%= finding.title %></h2>
+    <% if finding.detail.present? %><p class="market-text"><%= finding.detail %></p><% end %>
+  </div>
+
+  <% if can_write %>
+    <div class="cluster cluster--sm">
+      <% if opportunity %>
+        <%= link_to market_plan_path(anchor: "opportunity_#{opportunity.id}"), class: "btn btn--sm", data: {turbo_frame: "_top"} do %>
+          <%= icon_tag "check-circle" %> <span>On the plan: <%= opportunity.state %></span>
+        <% end %>
+      <% elsif finding.state == "open" then %>
+        <%= button_to market_finding_opportunity_path(finding), params: {return_to: back}, class: "btn btn--primary btn--sm", form_class: "contents" do %>
+          <%= icon_tag "add" %> <span>Make it an opportunity</span>
+        <% end %>
+      <% end %>
+      <% if gap.any? %>
+        <%= button_to market_keywords_path, params: {keyword: {keywords: gap.first(10).map { it["keyword"] }.join("\n"), source: "gap"}}, class: "btn btn--sm", form_class: "contents", form: {data: {turbo_frame: "_top"}} do %>
+          <%= icon_tag "search" %> <span>Track these searches</span>
+        <% end %>
+      <% end %>
+      <% if place == :competitor %>
+        <%= link_to "#{record.name}'s website", market_competitor_path(record), class: "btn btn--sm", data: {turbo_frame: "_top"} %>
+      <% elsif place == :local then %>
+        <%= link_to "Maps", market_maps_path, class: "btn btn--sm", data: {turbo_frame: "_top"} %>
+      <% elsif place == :profile then %>
+        <%= link_to "The profile", edit_market_profile_path, class: "btn btn--sm", data: {turbo_frame: "_top"} %>
+      <% elsif place == :competitors then %>
+        <%= link_to "Competitors", market_competitors_path, class: "btn btn--sm", data: {turbo_frame: "_top"} %>
+      <% else %>
+        <%= link_to "Search", market_search_path, class: "btn btn--sm", data: {turbo_frame: "_top"} %>
+      <% end %>
+      <% if finding.state == "open" %>
+        <%= button_to "Dismiss", market_finding_path(finding), method: :patch, params: {finding: {state: "dismissed"}, return_to: back}, class: "btn btn--sm btn--plain", form_class: "contents" %>
+      <% elsif finding.state == "dismissed" then %>
+        <%= button_to "Open again", market_finding_path(finding), method: :patch, params: {finding: {state: "open"}, return_to: back}, class: "btn btn--sm btn--plain", form_class: "contents" %>
+      <% end %>
+    </div>
+    <% if finding.state == "dismissed" %>
+      <p class="text-small text-muted">Dismissed by <%= finding.dismissed_by_name %>: it stays dismissed while it holds.</p>
+    <% elsif finding.state == "resolved" then %>
+      <p class="text-small text-muted">Resolved <%= l finding.resolved_at.to_date, format: :long %>: it no longer holds.</p>
+    <% end %>
+  <% end %>
+
+  <% if finding.evidence.present? %>
+    <section class="stack stack--xs">
+      <h3 class="label">The figures</h3>
+      <%= market_evidence finding.evidence %>
+    </section>
+  <% end %>
+
+  <% if finding.sources.present? %>
+    <section class="stack stack--xs">
+      <h3 class="label">Where they came from</h3>
+      <ul class="market-changes text-small">
+        <% finding.sources.each_with_index do |source, index| %>
+          <%# herb:key index %>
+          <li><%= source["type"].to_s.humanize %><%= " (#{source["kind"]})" if source["kind"] %><%= ", #{source["domain"]}" if source["domain"] %><%= ", #{l Time.zone.parse(source["at"]).to_date, format: :long}" if source["at"] %></li>
+        <% end %>
+      </ul>
+    </section>
+  <% end %>
+  <p class="text-small text-faint">Key <code><%= finding.key %></code></p>
+</div>

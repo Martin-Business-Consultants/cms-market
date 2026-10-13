@@ -1,0 +1,12 @@
+<% @page_title = @brief.label.upcase_first %>
+<% can_write = Current.user.can?("market:write") %>
+<%= render "layouts/shared/page_header", title: @brief.label.upcase_first %>
+
+<div class="grid grid--2 market-split">
+  <section class="panel panel--padded stack stack--md" aria-label="The facts">
+    <%= render "market/workups/facts", brief: @brief %>
+  </section>
+  <section class="panel panel--padded market-detail">
+    <%= render "market/workups/workup", subject: @subject, workup: @workup, can_write: can_write, back: market_work_path(subject: @subject) %>
+  </section>
+</div>

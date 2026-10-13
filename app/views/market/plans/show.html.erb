@@ -24,9 +24,9 @@
       <p class="text-small text-muted">
         No plan yet. <% if @settings.ai? %>Draft a plan has the AI write the state of the market, the angle to win on and the opportunities, best first, from the profile, the site and its competitors, the search data and the findings. The more of those there are, the better it is.<% else %><%= Market::Plan.ai_unavailable_reason %>. Opportunities can be added by hand below.<% end %>
       </p>
-    <% elsif @plan.working? %>
+    <% elsif @plan.working? then %>
       <p class="market-notice text-small" data-controller="refresh" data-refresh-interval-value="5"><%= icon_tag "refresh" %> Drafting the plan from everything known. A minute or two.</p>
-    <% elsif @plan.failed? %>
+    <% elsif @plan.failed? then %>
       <p class="notice notice--danger text-small" role="alert">The plan didn't finish: <%= @plan.error.presence || "it stopped answering" %>.</p>
     <% else %>
       <div class="market-text market-summary"><%= @plan.summary %></div>

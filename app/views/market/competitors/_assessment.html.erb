@@ -1,0 +1,80 @@
+<%# locals: (competitor:, can_write:) %>
+<%# The AI's read on a competitor: how they win, strengths and weaknesses (saved onto the competitor with one button), the threat, and moves to beat them, each one an opportunity a click away. %>
+<% analysis = competitor.analysis.to_h %>
+<section class="panel panel--padded stack stack--sm" aria-label="Sizing them up" id="assessment">
+  <div class="row row--between">
+    <h2 class="heading">Sizing them up</h2>
+    <% if competitor.assessed? %><span class="text-small text-muted">AI · <%= time_ago_in_words(competitor.analysed_at) %> ago</span><% end %>
+  </div>
+  <% if competitor.assessing? %>
+    <p class="market-notice text-small" data-controller="refresh" data-refresh-interval-value="5"><%= icon_tag "refresh" %> The AI is reading what's known about <%= competitor.name %>. A minute or so.</p>
+  <% elsif competitor.analysis_state == "failed" then %>
+    <p class="notice notice--danger text-small" role="status">It didn't finish: <%= competitor.analysis_error %></p>
+  <% end %>
+  <% if competitor.assessed? %>
+    <p class="market-summary"><%= analysis["summary"] %></p>
+    <dl class="market-facts text-small">
+      <dt>Threat</dt>
+      <dd><%= tag.span("#{analysis["threat"].to_s.capitalize} threat", class: {"high" => "badge badge--danger", "medium" => "badge badge--warning"}.fetch(analysis["threat"], "badge")) %> <%= analysis["threat_why"] %></dd>
+      <% if Array(analysis["strengths"]).any? %>
+        <dt>What they do well</dt>
+        <dd><ul class="market-changes">
+<% analysis["strengths"].each_with_index do |line, index| %>
+<%# herb:key index %>
+<li><%= line %></li>
+<% end %>
+</ul></dd>
+      <% end %>
+      <% if Array(analysis["weaknesses"]).any? %>
+        <dt>Where they're weak</dt>
+        <dd><ul class="market-changes">
+<% analysis["weaknesses"].each_with_index do |line, index| %>
+<%# herb:key index %>
+<li><%= line %></li>
+<% end %>
+</ul></dd>
+      <% end %>
+    </dl>
+    <% if can_write %>
+      <div><%= button_to "Save these on #{competitor.name}", market_competitor_assessment_path(competitor), method: :patch, class: "btn btn--sm", form_class: "contents",
+                 title: "Their strengths, weaknesses and threat, onto the competitor" %></div>
+    <% end %>
+    <% if competitor.moves.any? %>
+      <h3 class="label">Moves to beat them</h3>
+      <ul class="divided">
+        <% competitor.moves.each_with_index do |move, index| %>
+          <%# herb:key "move-#{index}" %>
+          <% opportunity = competitor.move_opportunity(index) %>
+          <li class="market-row stack stack--xs">
+            <span class="cluster cluster--sm"><strong><%= move["title"] %></strong> <span class="text-small text-muted"><%= market_channel_label move["channel"] %></span></span>
+            <span class="text-small market-text"><%= move["detail"] %></span>
+            <span class="text-small text-muted market-text">Why: <%= move["why"] %></span>
+            <div class="cluster cluster--sm">
+              <% if opportunity %>
+                <%= link_to market_overview_path(tab: "opportunities", item: opportunity.id), class: "btn btn--sm" do %><%= icon_tag "check-circle" %> <span>On the plan: <%= opportunity.state %></span><% end %>
+                <% if can_write %>
+                  <%= button_to market_workups_path, params: {subject: "opportunity:#{opportunity.id}", return_to: market_work_path(subject: "opportunity:#{opportunity.id}")}, class: "btn btn--sm", form_class: "contents" do %>
+                    <%= icon_tag "ai" %> <span>Work it out with AI</span>
+                  <% end %>
+                <% end %>
+              <% elsif can_write then %>
+                <%= button_to market_competitor_move_path(competitor, index), params: {return_to: market_competitor_path(competitor, anchor: "assessment")}, class: "btn btn--sm btn--primary", form_class: "contents" do %>
+                  <%= icon_tag "add" %> <span>Make it an opportunity</span>
+                <% end %>
+              <% end %>
+            </div>
+          </li>
+        <% end %>
+      </ul>
+    <% end %>
+  <% elsif !competitor.assessing? then %>
+    <p class="text-small text-muted">The AI reads their website, search data, the map and the findings about them, beside the business's, and says how they win, where they're weak, and the moves that would beat them.</p>
+  <% end %>
+  <% if can_write && !competitor.assessing? %>
+    <% if Market::Plan.ai_available? %>
+      <div><%= button_to (competitor.assessed? ? "Size them up again" : "Size them up with AI"), market_competitor_assessment_path(competitor), class: class_names("btn btn--sm", "btn--primary": !competitor.assessed?), form_class: "contents" %></div>
+    <% else %>
+      <p class="text-small text-muted"><%= Market::Plan.ai_unavailable_reason %>.</p>
+    <% end %>
+  <% end %>
+</section>

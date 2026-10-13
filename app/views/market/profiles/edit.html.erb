@@ -53,7 +53,7 @@
     </div>
     <% if @profile.local_error %>
       <p class="text-small text-danger" role="alert"><%= @profile.local_error %></p>
-    <% elsif @profile.local? %>
+    <% elsif @profile.local? then %>
       <p class="text-small text-muted">Centred on <%= @profile.local_place %> (<%= @profile.local_center.join(", ") %>).</p>
     <% end %>
     <div class="grid grid--3 fields-grid">

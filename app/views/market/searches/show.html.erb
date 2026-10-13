@@ -19,7 +19,7 @@
     <p class="market-notice text-small" data-controller="refresh" data-refresh-interval-value="5">
       <%= icon_tag "refresh" %> Pulling from DataForSEO: every site's visibility and keywords, then who ranks where for the tracked searches. A minute or two.
     </p>
-  <% elsif pull && pull.state.in?(%w[stopped failed partial]) %>
+  <% elsif pull && pull.state.in?(%w[stopped failed partial]) then %>
     <% partial = pull.state == "partial" %>
     <p class="<%= class_names("text-small", "market-notice": partial, "notice notice--danger": !partial) %>" role="status">
       The last pull <%= (pull.state == "partial") ? "missed some parts" : pull.state %><%= ": #{pull.error}" if pull.error.present? %>.
@@ -37,9 +37,9 @@
         Search data comes from DataForSEO: visibility, estimated traffic, the keywords each site ranks for, and who ranks where for the searches you track.
         <% if Current.user.can?("settings:read") %><%= link_to "Connect it in Settings › Market", settings_market_path, class: "link" %>.<% end %>
       </p>
-    <% elsif !@data.profile.domain %>
+    <% elsif !@data.profile.domain then %>
       <p class="text-small text-muted">Set the site's address in Settings › General to pull its search data.</p>
-    <% elsif !@data.pulled? %>
+    <% elsif !@data.pulled? then %>
       <p class="text-small text-muted">No search data yet. Pull it to see how visible the site is against each competitor.</p>
     <% end %>
     <% if @data.pulled? %>
@@ -57,7 +57,10 @@
             <% @data.sites.each do |site| %>
               <%# herb:key site.domain %>
               <tr class="<%= class_names("market-compare__own": site.own?) %>">
-                <td><strong><%= site.name %></strong><div class="text-small text-muted"><%= site.domain %></div></td>
+                <td>
+                  <%= link_to site.name, market_search_path(sheet: "visibility:#{site.own? ? "own" : site.competitor.id}"), class: "title-link", data: {turbo_frame: "market_sheet"} %>
+                  <div class="text-small text-muted"><%= site.domain %></div>
+                </td>
                 <% if site.pulled? %>
                   <td class="data-table__num"><%= market_change site.figure("organic_keywords"), site.before("organic_keywords") %></td>
                   <td class="data-table__num"><%= market_change site.figure("organic_traffic"), site.before("organic_traffic") %></td>
@@ -81,7 +84,7 @@
   <section class="panel panel--padded stack stack--sm" id="tracked">
     <div class="row row--between">
       <h2 class="heading">Searches tracked</h2>
-      <span class="text-small text-muted">From <%= @data.profile.local? ? "ZIP #{@data.profile.local_zip}" : (@data.profile.search_location || @settings.country) %></span>
+      <span class="text-small text-muted">Open one for its results and the AI's suggestions · from <%= @data.profile.local? ? "ZIP #{@data.profile.local_zip}" : (@data.profile.search_location || @settings.country) %></span>
     </div>
     <% if tracked.any? %>
       <div class="panel--scroll">
@@ -93,14 +96,14 @@
                 <%# herb:key site.domain %>
                 <th title="<%= site.name %>"><%= site.name.truncate(16) %></th>
               <% end %>
-              <th>On the page</th><th></th>
+              <th>Maps</th><th>On the page</th><th></th>
             </tr>
           </thead>
           <tbody>
             <% tracked.each do |row| %>
               <%# herb:key row[:keyword].id %>
               <tr>
-                <td><%= row[:keyword].keyword %></td>
+                <td><%= link_to row[:keyword].keyword, market_search_path(sheet: "keyword:#{row[:keyword].id}"), class: "title-link", data: {turbo_frame: "market_sheet"} %></td>
                 <td>
                   <% if row[:ranking] %>
                     <%= market_position row[:position], row[:before] %>
@@ -113,6 +116,11 @@
                   <%# herb:key site.domain %>
                   <td><%= row[:ranking] ? market_position(row[:competitors][site.domain], nil) : "" %></td>
                 <% end %>
+                <td class="text-small">
+                  <% if row[:local] %>
+                    <%= link_to market_maps_path(keyword: row[:keyword].id), class: "link", title: "Average position on Google Maps across the area" do %><%= row[:local].average_position %><% end %>
+                  <% end %>
+                </td>
                 <td class="text-small text-muted"><%= Array(row[:ranking]&.features).map { it.humanize.downcase }.first(3).join(", ") %></td>
                 <td>
                   <% if can_write %>
@@ -137,41 +145,6 @@
     <% end %>
   </section>
 
-  <section class="panel panel--padded stack stack--sm" id="local">
-    <div class="row row--between">
-      <h2 class="heading">On the map</h2>
-      <span class="text-small text-muted"><%= @data.profile.local? ? "#{@data.profile.local_grid} × #{@data.profile.local_grid} points within #{@data.profile.local_radius_miles.to_i} miles of #{@data.profile.local_zip}" : "Not set up" %></span>
-    </div>
-    <% if !@data.profile.local? %>
-      <p class="text-small text-muted">Set a ZIP and radius in <%= link_to "Market › Profile", edit_market_profile_path, class: "link" %> to see where the business shows on Google Maps across its area, point by point.</p>
-    <% elsif !@data.local_scanned? %>
-      <p class="text-small text-muted">Not scanned yet: the next pull checks each tracked search from every point.</p>
-    <% else %>
-      <p class="text-small text-muted">Its position on Google Maps from each point, north at the top: green is the top 3, amber 4 to 10, red further or not found.</p>
-      <div class="market-locals">
-        <% tracked.select { it[:local] }.each do |row| %>
-          <%# herb:key row[:keyword].id %>
-          <% scan = row[:local] %>
-          <div class="stack stack--xs market-local">
-            <strong><%= row[:keyword].keyword %></strong>
-            <div class="<%= class_names("market-grid", "market-grid--3": scan.grid == 3, "market-grid--7": scan.grid == 7) %>" role="img" aria-label="<%= scan.found_points %> of <%= scan.points.size %> points found, average <%= scan.average_position %>">
-              <% scan.points.sort_by { [it["row"], it["col"]] }.each do |point| %>
-                <%# herb:key "#{point["row"]}-#{point["col"]}" %>
-                <% position = point["position"] %>
-                <span class="<%= class_names("market-grid__cell", "market-grid__cell--top": position.to_i.between?(1, 3), "market-grid__cell--mid": position.to_i.between?(4, 10), "market-grid__cell--low": !position.to_i.between?(1, 10)) %>"
-                      title="<%= ["#{point["lat"]}, #{point["lng"]}", *Array(point["top"]).each_with_index.map { |title, index| "#{index + 1}. #{title}" }].join("\n") %>"><%= position || "–" %></span>
-              <% end %>
-            </div>
-            <span class="text-small">Average <strong><%= scan.average_position %></strong><%= " (was #{row[:local_before].average_position})" if row[:local_before] %> · top 3 at <%= (scan.top3_share * scan.points.size).round %> of <%= scan.points.size %></span>
-            <% if scan.leaders.any? %>
-              <span class="text-small text-muted">Leading: <%= scan.leaders.first(3).map { "#{it["title"]} (#{it["top3_points"]})" }.join(", ") %></span>
-            <% end %>
-          </div>
-        <% end %>
-      </div>
-    <% end %>
-  </section>
-
   <% unwatched = @data.unwatched.first(8) %>
   <% if unwatched.any? %>
     <section class="panel panel--padded stack stack--sm">
@@ -191,3 +164,21 @@
     </section>
   <% end %>
 </div>
+
+<%# A row opened: its facts and the AI's suggestions, in a sheet over the page; the address keeps it, so a reload (and the wait for the AI) keeps it open. %>
+<turbo-frame id="market_sheet" data-turbo-action="advance">
+  <% if @sheet %>
+    <div class="contents" data-controller="dialog" data-dialog-modal-value="true" data-dialog-auto-open-value="true">
+      <dialog class="dialog dialog--sheet dialog--sheet-half" data-dialog-target="dialog" aria-label="<%= @brief.label.upcase_first %>" closedby="any">
+        <header class="dialog__header row row--between">
+          <h2 class="heading heading--lg"><%= @brief.label.upcase_first %></h2>
+          <%= link_to market_search_path, class: "btn btn--sm btn--plain", data: {turbo_frame: "market_sheet"} do %><%= icon_tag "close" %><span class="visually-hidden">Close</span><% end %>
+        </header>
+        <div class="stack stack--lg">
+          <section class="stack stack--sm" aria-label="The facts"><%= render "market/workups/facts", brief: @brief %></section>
+          <%= render "market/workups/workup", subject: @sheet, workup: @workup, can_write: can_write, back: market_search_path(sheet: @sheet) %>
+        </div>
+      </dialog>
+    </div>
+  <% end %>
+</turbo-frame>

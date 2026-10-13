@@ -12,7 +12,7 @@
         <% findings.each do |finding| %>
           <%# herb:key finding.id %>
           <li class="row row--between market-row">
-            <span class="grow truncate"><%= finding.title %></span>
+            <%= link_to finding.title, market_findings_path(finding: finding.id), class: "grow truncate title-link" %>
             <%= market_severity_tag finding %>
           </li>
         <% end %>
