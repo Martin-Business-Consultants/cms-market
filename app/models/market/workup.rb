@@ -3,8 +3,9 @@
 # Content work for one thing on the Market screens, drafted by the install's
 # AI (the AI plugin, cms-ai: Ai.structured) from what's known about it
 # (Market::Workup::Brief): a tracked search ("keyword:12"), the map for one
-# ("map:12"), a site's visibility ("visibility:own", "visibility:3"), or an
-# opportunity ("opportunity:5"). It answers with changes a person sends on
+# ("map:12"), a site's visibility ("visibility:own", "visibility:3"), an
+# opportunity ("opportunity:5"), a finding ("finding:9") or one of the site's
+# pages ("page:4"). It answers with changes a person sends on
 # one at a time (Market::Workup::Sending): a page's title, meta data and
 # wording, held in Approvals until a person puts them live; a new post, held
 # the same way; a draft page; searches to track; a task on the plan.
@@ -25,7 +26,7 @@ class Market::Workup < ApplicationRecord
   serialize :answer, coder: JSON, type: Hash
   serialize :sent, coder: JSON, type: Hash
 
-  SUBJECT = /\A(?:(?:keyword|map|opportunity|visibility):\d+|visibility:own)\z/
+  SUBJECT = /\A(?:(?:keyword|map|opportunity|visibility|finding|page):\d+|visibility:own)\z/
 
   validates :subject, presence: true, format: {with: SUBJECT}
   validates :state, inclusion: {in: STATES}

@@ -38,6 +38,34 @@
     </ul>
   </section>
 
+  <% if report.search_console || report.analytics || report.business_profile %>
+    <div class="grid grid--2">
+      <% if report.search_console %>
+        <section class="panel panel--padded stack stack--sm">
+          <h2 class="heading">Clicks from Google</h2>
+          <p class="text-small text-muted">Real clicks and impressions from Google search, by week (Search Console).</p>
+          <%= market_line_chart report.google_clicks, label: "Clicks from Google search by week" %>
+          <%= market_line_chart report.google_impressions, label: "Impressions in Google search by week" %>
+        </section>
+      <% end %>
+      <% if report.analytics %>
+        <section class="panel panel--padded stack stack--sm">
+          <h2 class="heading">Visits and enquiries</h2>
+          <p class="text-small text-muted">Sessions and key events (enquiries, bookings), by week (Analytics).</p>
+          <%= market_line_chart report.google_sessions, label: "Sessions by week" %>
+          <%= market_line_chart report.google_key_events, label: "Key events by week" %>
+        </section>
+      <% end %>
+      <% if report.business_profile %>
+        <section class="panel panel--padded stack stack--sm">
+          <h2 class="heading">From the Business Profile</h2>
+          <p class="text-small text-muted">Calls, website clicks and direction requests from Google, by week.</p>
+          <%= market_line_chart report.google_actions, label: "Calls, website clicks and directions by week" %>
+        </section>
+      <% end %>
+    </div>
+  <% end %>
+
   <div class="grid grid--2">
     <section class="panel panel--padded stack stack--sm">
       <h2 class="heading">Search traffic</h2>

@@ -22,7 +22,7 @@ class Market::Report
 
   # The parts there's data for, each 0–100.
   def parts
-    @parts ||= [search_part, rankings_part, maps_part, content_part, findings_part].compact
+    @parts ||= [search_part, rankings_part, maps_part, content_part, findings_part, *google_parts].compact
   end
 
   def score = parts.any? ? (parts.sum(&:score).to_f / parts.size).round : nil
@@ -112,7 +112,61 @@ class Market::Report
 
   def any_data? = parts.any? || visibility.any? || posting.any?
 
+  # Google's own figures, from the Google plugin when it's connected; nil for each service that isn't.
+  def search_console = google(:search_console)
+  def analytics = google(:analytics)
+  def business_profile = google(:business_profile)
+
+  # Clicks and impressions from Google search, by week (Search Console).
+  def google_clicks = weekly(search_console&.daily, {"Clicks" => 1}, own: "Clicks")
+  def google_impressions = weekly(search_console&.daily, {"Impressions" => 2}, own: "Impressions")
+
+  # Sessions and key events, by week (Analytics).
+  def google_sessions = weekly(analytics&.daily, {"Sessions" => 1}, own: "Sessions")
+  def google_key_events = weekly(analytics&.daily, {"Key events" => 3}, own: "Key events")
+
+  # Calls, website clicks and directions from the Business Profile, by week.
+  def google_actions
+    days = business_profile&.daily.to_a.map { [Date.parse(it["date"]), it["calls"].to_i, it["website"].to_i, it["directions"].to_i] }
+    weekly(days, {"Calls" => 1, "Website clicks" => 2, "Directions" => 3}, own: "Calls")
+  end
+
   private
+
+  def google(service)
+    return unless defined?(::Google) && ::Google.respond_to?(service)
+
+    (@google ||= {})[service] ||= ::Google.public_send(service)
+  end
+
+  # Days ([Date, figure…]) added up by week, one series per {name => index}; part-weeks (the first and the last) dropped.
+  def weekly(days, columns, own:)
+    return [] if days.blank?
+
+    weeks = days.group_by { it[0].beginning_of_week }.sort.reject { |_, rows| rows.size < 7 }
+    columns.map do |name, index|
+      Series.new(name: name, points: weeks.map { |week, rows| [week.to_time, rows.sum { it[index].to_f }] }, own: name == own)
+    end
+  end
+
+  # Moved since the 28 days before, as a score: unchanged is 50, doubled or more is 100.
+  def trend_score(now, before)
+    return 50 if before.to_f.zero?
+
+    (50 + (now.to_f - before) * 50 / before).clamp(0, 100).round
+  end
+
+  def google_parts
+    [(console = search_console) && console.totals && Part.new(key: :google_search, label: "Clicks from Google",
+      score: trend_score(console.totals[:clicks], console.totals_before&.dig(:clicks)),
+      detail: "#{console.totals[:clicks]} clicks in 28 days#{" (#{console.totals_before[:clicks]} the 28 before)" if console.totals_before}, Search Console", path: :market_search_path),
+      (ga = analytics) && ga.totals && Part.new(key: :google_enquiries, label: "Enquiries",
+        score: trend_score(ga.totals[:key_events], ga.totals_before&.dig(:key_events)),
+        detail: "#{ga.totals[:key_events]} key events from #{ga.totals[:sessions]} sessions in 28 days#{" (#{ga.totals_before[:key_events]} the 28 before)" if ga.totals_before}, Analytics", path: :market_report_path),
+      (profile = business_profile) && profile.totals && Part.new(key: :google_profile, label: "Business Profile",
+        score: ((profile.reviews["average"].to_f / 5 * 60) + trend_score(profile.totals[:calls], profile.totals_before&.dig(:calls)) * 0.4).round,
+        detail: "#{profile.reviews["average"] || "No"} stars from #{profile.reviews["total"].to_i} reviews; #{profile.totals[:calls]} calls in 28 days#{" (#{profile.totals_before[:calls]} before)" if profile.totals_before}", path: :market_maps_path)].compact
+  end
 
   def overview_snapshots
     @overview_snapshots ||= Market::SearchSnapshot.where(kind: "overview", taken_at: @since..).where(competitor_id: [nil, *@competitors.map(&:id)]).order(:taken_at).to_a

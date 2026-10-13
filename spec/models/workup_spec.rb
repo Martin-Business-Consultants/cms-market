@@ -93,6 +93,6 @@ RSpec.describe Market::Workup do
 
   it "only takes subjects it knows" do
     expect(described_class.new(subject: "keyword:1; drop")).not_to be_valid
-    expect { Market::Workup::Brief.new("page:1") }.to raise_error(ActiveRecord::RecordNotFound)
+    expect { Market::Workup::Brief.new("post:1") }.to raise_error(ActiveRecord::RecordNotFound)
   end
 end

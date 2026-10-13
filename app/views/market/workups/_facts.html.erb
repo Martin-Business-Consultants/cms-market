@@ -25,6 +25,30 @@
   <% scan = Market::LocalScan.latest_for([record])[record.id]&.first %>
   <p class="text-small"><%= scan ? "Average #{scan.average_position} on Google Maps; in the top 3 at #{(scan.top3_share * scan.points.size).round} of #{scan.points.size} points." : "Not scanned yet." %>
     <%= link_to "The map", market_maps_path(keyword: record.id), class: "link", data: {turbo_frame: "_top"} %></p>
+<% elsif brief.kind == "finding" then %>
+  <div class="cluster cluster--sm"><%= market_severity_tag record %><span class="text-small text-muted"><%= record.channel_label %></span></div>
+  <% if record.detail.present? %><p class="market-text"><%= record.detail %></p><% end %>
+  <%= market_evidence record.evidence %>
+<% elsif brief.kind == "page" then %>
+  <% console = (defined?(::Google) && ::Google.respond_to?(:search_console)) ? ::Google.search_console : nil %>
+  <% seo = record.seo.to_h %>
+  <dl class="market-facts text-small">
+    <dt>Page</dt><dd><%= link_to "/#{(record.path == "home") ? "" : record.path}", edit_page_path(record.path), class: "link", data: {turbo_frame: "_top"} %> <span class="text-muted">(<%= record.status %>)</span></dd>
+    <dt>Meta title</dt><dd><%= seo["meta_title"].present? ? seo["meta_title"] : tag.span("Not set", class: "text-muted") %></dd>
+    <dt>Meta description</dt><dd><%= seo["meta_description"].present? ? seo["meta_description"] : tag.span("Not set", class: "text-muted") %></dd>
+  </dl>
+  <% found = console ? console.queries_for(record.path) : [] %>
+  <% if found.any? %>
+    <table class="data-table market-evidence-table">
+      <thead><tr><th>Found on Google for</th><th class="data-table__num">Impressions</th><th class="data-table__num">Clicks</th><th class="data-table__num">Position</th></tr></thead>
+      <tbody>
+        <% found.each do |row| %>
+          <%# herb:key row["keys"][0] %>
+          <tr><td><%= row["keys"][0] %></td><td class="data-table__num"><%= number_with_delimiter row["impressions"] %></td><td class="data-table__num"><%= number_with_delimiter row["clicks"] %></td><td class="data-table__num"><%= row["position"].to_f.round(1) %></td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% end %>
 <% elsif brief.kind == "opportunity" then %>
   <div class="cluster cluster--sm"><%= market_impact_tag record %><%= market_effort_tag record %><span class="text-small text-muted"><%= record.channel_label %> · <%= record.horizon_label %></span></div>
   <% if record.detail.present? %><p class="market-text"><%= record.detail %></p><% end %>

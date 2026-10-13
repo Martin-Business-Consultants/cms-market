@@ -19,6 +19,8 @@ class Market::Workup::Brief
       case @kind
       when "keyword", "map" then Market::Keyword.find(id)
       when "opportunity" then Market::Opportunity.find(id)
+      when "finding" then Market::Finding.find(id)
+      when "page" then ::Page.find(id)
       when "visibility" then (id == "own") ? nil : Market::Competitor.find(id)
       end
   end
@@ -28,12 +30,14 @@ class Market::Workup::Brief
     when "keyword" then "the search “#{record.keyword}”"
     when "map" then "showing on Google Maps for “#{record.keyword}”"
     when "opportunity" then "the opportunity “#{record.title}”"
+    when "finding" then "the finding “#{record.title}”"
+    when "page" then "the page “#{record.title}” (/#{(record.path == "home") ? "" : record.path})"
     else record ? "beating #{record.name} in search" : "the site's visibility in search"
     end
   end
 
   def to_s
-    [business, facts, pages, *focus_pages.map { page_text(it) }].compact_blank.join("\n\n")
+    [business, facts, google, pages, *focus_pages.map { page_text(it) }].compact_blank.join("\n\n")
   end
 
   # A page's text fields, {id => text}; nil for a path that isn't a page.
@@ -74,6 +78,8 @@ class Market::Workup::Brief
     when "keyword" then keyword_facts
     when "map" then map_facts
     when "opportunity" then "The opportunity: #{record.title} (#{record.channel_label}, #{record.impact} impact, #{record.effort} effort)\n#{record.detail}\nEvidence: #{record.evidence}"
+    when "finding" then "The finding (#{record.severity}): #{record.title}\n#{record.detail}\nThe figures: #{JSON.generate(record.evidence).truncate(4000)}"
+    when "page" then "The page to improve: /#{(record.path == "home") ? "" : record.path} (“#{record.title}”), #{record.status}; SEO: #{JSON.generate(record.seo.to_h).truncate(1500)}"
     else visibility_facts
     end
   end
@@ -126,15 +132,58 @@ class Market::Workup::Brief
   end
 
   # The pages whose wording is given: the one ranking for the search, else the home page.
-  def focus_pages
+  def focus_pages = @focus_pages ||= find_focus_pages
+
+  def find_focus_pages
     paths = []
     if kind.in?(%w[keyword map])
       now = Market::Ranking.latest_for([record])[record.id]&.first
       paths << now.page_path if now&.page_path
     end
     paths << record.page.path if kind == "opportunity" && record.page
+    paths << record.path if kind == "page"
+    paths << record.evidence["page_path"] if kind == "finding" && record.evidence["page_path"]
     paths << "home"
     ::Page.where(path: paths.uniq).to_a.sort_by { paths.index(it.path) }.first(2)
+  end
+
+  # What Google says, from the Google plugin when it's on: the real searches and clicks, the visits and enquiries, the profile's calls and reviews.
+  def google
+    return unless defined?(::Google) && ::Google.respond_to?(:search_console)
+
+    paths = focus_pages.map(&:path)
+    [search_console_facts(::Google.search_console, paths), analytics_facts(::Google.analytics, paths), profile_facts(::Google.business_profile)].compact.join("\n\n").presence
+  end
+
+  def search_console_facts(console, paths)
+    return unless console&.totals
+
+    now = console.totals
+    rows = (kind.in?(%w[keyword map]) ? console.queries.select { it["keys"][0].include?(record.keyword) || record.keyword.include?(it["keys"][0]) }.first(10) : [])
+    ["Google Search Console, last 28 days (real figures): #{now[:clicks]} clicks, #{now[:impressions]} impressions, CTR #{(now[:ctr] * 100).round(1)}%, average position #{now[:position]}#{" (the 28 before: #{console.totals_before[:clicks]} clicks)" if console.totals_before}.",
+      ("This search in Search Console: #{rows.map { "#{it["keys"][0]} (#{it["impressions"]} impressions, #{it["clicks"]} clicks, position #{it["position"].to_f.round(1)})" }.join("; ")}" if rows.any?),
+      *paths.filter_map { |path| (found = console.queries_for(path, limit: 12)).any? ? "Searches /#{(path == "home") ? "" : path} is found for: #{found.map { "#{it["keys"][0]} (#{it["impressions"]} impr., #{it["clicks"]} clicks, pos. #{it["position"].to_f.round(1)})" }.join("; ")}" : nil },
+      "Searches close to the top (position 4–20): #{console.striking_distance(limit: 12).map { "#{it["keys"][0]} (#{it["impressions"]} impr., pos. #{it["position"].to_f.round(1)})" }.join("; ").presence || "none"}",
+      ("Pages shown a lot but clicked little: #{console.low_click_pages(limit: 6).map { "/#{console.page_path(it["keys"][0])} (#{it["impressions"]} impr., CTR #{(it["ctr"].to_f * 100).round(1)}%, pos. #{it["position"].to_f.round(1)})" }.join("; ")}" if console.low_click_pages.any?)].compact.join("\n")
+  end
+
+  def analytics_facts(analytics, paths)
+    return unless analytics&.totals
+
+    now = analytics.totals
+    pages = analytics.landing_pages.select { |row| paths.any? { "/#{(it == "home") ? "" : it}" == row["key"] } }
+    ["Google Analytics, last 28 days: #{now[:sessions]} sessions, #{now[:key_events]} key events (enquiries, bookings).",
+      "By channel: #{analytics.channels.first(6).map { "#{it["key"]} #{it["now"]["sessions"].to_i}" }.join(", ")}",
+      *pages.map { "Landing page #{it["key"]}: #{it["now"]["sessions"].to_i} sessions, #{it["now"]["keyEvents"].to_i} key events, #{(it["now"]["engagementRate"] * 100).round}% engaged" }].join("\n")
+  end
+
+  def profile_facts(profile)
+    return unless profile&.totals && kind.in?(%w[map finding visibility])
+
+    now = profile.totals
+    ["Google Business Profile, last 28 days: #{now[:maps] + now[:search]} views, #{now[:calls]} calls, #{now[:website]} website clicks, #{now[:directions]} direction requests; " \
+      "#{profile.reviews["total"]} reviews at #{profile.reviews["average"]}, #{profile.unanswered_reviews.size} unanswered.",
+      "Searches it was found for on Google: #{profile.keywords.first(15).map { "#{it["keyword"]} (#{it["impressions"]})" }.join(", ")}"].join("\n")
   end
 
   def page_text(page)

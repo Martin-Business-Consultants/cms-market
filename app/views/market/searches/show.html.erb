@@ -79,6 +79,79 @@
     <% end %>
   </section>
 
+  <% if @google&.totals %>
+    <% now = @google.totals %>
+    <% before = @google.totals_before %>
+    <section class="panel panel--padded stack stack--sm" id="search_console">
+      <div class="row row--between">
+        <h2 class="heading">From Google Search Console</h2>
+        <span class="text-small text-muted">Real figures, last 28 days · synced <%= time_ago_in_words(@google.synced_at) %> ago</span>
+      </div>
+      <dl class="market-facts text-small">
+        <dt>Clicks</dt><dd><%= market_change now[:clicks], before&.dig(:clicks) %></dd>
+        <dt>Impressions</dt><dd><%= market_change now[:impressions], before&.dig(:impressions) %></dd>
+        <dt>Click-through · position</dt><dd><%= (now[:ctr] * 100).round(1) %>% · <%= now[:position] %></dd>
+      </dl>
+      <div class="grid grid--2">
+        <div class="stack stack--xs">
+          <h3 class="label">Close to the top</h3>
+          <p class="text-small text-muted">Searches Google shows the site for, 4th to 20th: the quickest to move up.</p>
+          <table class="data-table market-evidence-table">
+            <thead><tr><th>Search</th><th class="data-table__num">Impr.</th><th class="data-table__num">Pos.</th><th></th></tr></thead>
+            <tbody>
+              <% striking = @google.striking_distance(limit: 10) %>
+              <% tracked_words = @data.keywords.map(&:keyword) %>
+              <% striking.each do |row| %>
+                <%# herb:key row["keys"][0] %>
+                <tr>
+                  <td><%= row["keys"][0] %></td>
+                  <td class="data-table__num"><%= number_with_delimiter row["impressions"] %></td>
+                  <td class="data-table__num"><%= row["position"].to_f.round(1) %></td>
+                  <td>
+                    <% if tracked_words.include?(row["keys"][0]) %>
+                      <span class="text-small text-muted">Tracked</span>
+                    <% elsif can_write %>
+                      <%= button_to "Track", market_keywords_path, params: {keyword: {keywords: row["keys"][0], source: "ranked"}, return_to: market_search_path(anchor: "search_console")}, class: "btn btn--sm", form_class: "contents" %>
+                    <% end %>
+                  </td>
+                </tr>
+              <% end %>
+              <%= table_empty_row("None right now.", columns: 4) if striking.none? %>
+            </tbody>
+          </table>
+        </div>
+        <div class="stack stack--xs">
+          <h3 class="label">Shown a lot, clicked little</h3>
+          <p class="text-small text-muted">Pages whose title and description don't win the click for where they rank. Open one for the AI's rewrite.</p>
+          <table class="data-table market-evidence-table">
+            <thead><tr><th>Page</th><th class="data-table__num">Impr.</th><th class="data-table__num">CTR</th><th class="data-table__num">Pos.</th></tr></thead>
+            <tbody>
+              <% low = @google.low_click_pages(limit: 10) %>
+              <% pages = Page.where(path: low.map { @google.page_path(it["keys"][0]) }).index_by(&:path) %>
+              <% low.each do |row| %>
+                <%# herb:key row["keys"][0] %>
+                <% path = @google.page_path(row["keys"][0]) %>
+                <tr>
+                  <td>
+                    <% if (page = pages[path]) %>
+                      <%= link_to "/#{(path == "home") ? "" : path}", market_search_path(sheet: "page:#{page.id}"), class: "title-link", data: {turbo_frame: "market_sheet"} %>
+                    <% else %>
+                      /<%= (path == "home") ? "" : path %>
+                    <% end %>
+                  </td>
+                  <td class="data-table__num"><%= number_with_delimiter row["impressions"] %></td>
+                  <td class="data-table__num"><%= (row["ctr"].to_f * 100).round(1) %>%</td>
+                  <td class="data-table__num"><%= row["position"].to_f.round(1) %></td>
+                </tr>
+              <% end %>
+              <%= table_empty_row("None right now.", columns: 4) if low.none? %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  <% end %>
+
   <% tracked = @data.tracked %>
   <% shown = @data.competitor_sites.first(4) %>
   <section class="panel panel--padded stack stack--sm" id="tracked">

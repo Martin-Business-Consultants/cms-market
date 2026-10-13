@@ -57,6 +57,15 @@
             <% end %>
           </div>
 
+          <% profile = (defined?(::Google) && ::Google.respond_to?(:business_profile)) ? ::Google.business_profile : nil %>
+          <% if (totals = profile&.totals) %>
+            <dl class="market-facts text-small">
+              <dt>Business Profile, 28 days</dt>
+              <dd><%= number_with_delimiter(totals[:maps] + totals[:search]) %> views · <%= number_with_delimiter totals[:calls] %> calls · <%= number_with_delimiter totals[:directions] %> directions · <%= number_with_delimiter totals[:website] %> website clicks</dd>
+              <% if profile.reviews["total"] %><dt>Reviews</dt><dd><%= profile.reviews["average"] %>★ from <%= number_with_delimiter profile.reviews["total"] %> · <%= profile.unanswered_reviews.size %> unanswered</dd><% end %>
+            </dl>
+          <% end %>
+
           <% if scan %>
             <% point = scan.points.find { "#{it["row"]}-#{it["col"]}" == @point } %>
             <div class="market-map">

@@ -15,3 +15,10 @@ json.findings_by_week series.call(@report.findings_by_week)
 json.open_findings @report.open_findings
 json.opportunities @report.opportunities
 json.spend(@report.spend.map { |month, cost| {month: month.strftime("%Y-%m"), cost: cost.to_f} })
+json.google do
+  json.clicks series.call(@report.google_clicks)
+  json.impressions series.call(@report.google_impressions)
+  json.sessions series.call(@report.google_sessions)
+  json.key_events series.call(@report.google_key_events)
+  json.business_profile series.call(@report.google_actions)
+end

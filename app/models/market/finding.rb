@@ -45,7 +45,9 @@ class Market::Finding < ApplicationRecord
     domain = evidence["domain"]
     competitor = domain && Market::Competitor.find_by(domain: domain)
     case kind
-    when /\Alocal/ then [:local, nil]
+    when /\Alocal/, "gbp_calls_falling" then [:local, nil]
+    when "gsc_low_clicks" then (page = ::Page.find_by(path: evidence["page_path"])) ? [:page, page] : [:search, nil]
+    when "ga_leaky_pages", "ga_key_events_falling", "gbp_unanswered_reviews", "gsc_clicks_falling" then [:google, nil]
     when "keyword_gap", "competitor_surge", "site_changes" then competitor ? [:competitor, competitor] : [:search, nil]
     when "profile_gaps" then [:profile, nil]
     when "no_competitors", "location_pages", "content_freshness", "conversion_tools", "competitor_ads", "stale_site" then [:competitors, nil]

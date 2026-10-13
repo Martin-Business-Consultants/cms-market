@@ -25,6 +25,17 @@
           <%= icon_tag "add" %> <span>Make it an opportunity</span>
         <% end %>
       <% end %>
+      <% subject = "finding:#{finding.id}" %>
+      <% if Market::Workup.where(subject: subject).exists? %>
+        <%= link_to market_work_path(subject: subject), class: "btn btn--sm", data: {turbo_frame: "_top"} do %>
+          <%= icon_tag "ai" %> <span>Suggestions</span>
+        <% end %>
+      <% end %>
+      <% if finding.state == "open" && Market::Plan.ai_available? && !Market::Workup.where(subject: subject).exists? %>
+        <%= button_to market_workups_path, params: {subject: subject, return_to: market_work_path(subject: subject)}, class: "btn btn--sm", form_class: "contents", form: {data: {turbo_frame: "_top"}} do %>
+          <%= icon_tag "ai" %> <span>Work it out with AI</span>
+        <% end %>
+      <% end %>
       <% if gap.any? %>
         <%= button_to market_keywords_path, params: {keyword: {keywords: gap.first(10).map { it["keyword"] }.join("\n"), source: "gap"}}, class: "btn btn--sm", form_class: "contents", form: {data: {turbo_frame: "_top"}} do %>
           <%= icon_tag "search" %> <span>Track these searches</span>
@@ -34,6 +45,10 @@
         <%= link_to "#{record.name}'s website", market_competitor_path(record), class: "btn btn--sm", data: {turbo_frame: "_top"} %>
       <% elsif place == :local then %>
         <%= link_to "Maps", market_maps_path, class: "btn btn--sm", data: {turbo_frame: "_top"} %>
+      <% elsif place == :page then %>
+        <%= link_to "Edit the page", edit_page_path(record.path), class: "btn btn--sm", data: {turbo_frame: "_top"} %>
+      <% elsif place == :google then %>
+        <%= link_to "The report", market_report_path, class: "btn btn--sm", data: {turbo_frame: "_top"} %>
       <% elsif place == :profile then %>
         <%= link_to "The profile", edit_market_profile_path, class: "btn btn--sm", data: {turbo_frame: "_top"} %>
       <% elsif place == :competitors then %>

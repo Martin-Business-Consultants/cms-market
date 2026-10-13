@@ -45,6 +45,13 @@ The big picture behind the site's SEO and marketing, beside the site it's about.
   run from the ZIP too. The ZIP is located once with OpenStreetMap, and the business is found among the
   map results by its website or its name on Google Maps. Findings flag a search where it isn't on the map
   anywhere in the area, where it's weak across much of it, and where it slips.
+- **Google** (with the [Google plugin](https://github.com/Martin-Business-Consultants/cms-google) connected):
+  Search Console's real clicks and searches, Analytics' visits and enquiries, and the Business Profile's
+  calls and reviews join everything above. Search shows the searches the site is close on (track them in a
+  click) and the pages shown a lot but clicked little (open one for the AI's rewrite); findings flag those,
+  clicks or enquiries falling, landing pages that convert nobody, calls falling and unanswered reviews; the
+  report adds clicks, enquiries and the profile to the health score and charts them by week; Maps shows the
+  profile's calls and reviews; and the AI's suggestions are written from Google's own figures.
 - **Report** gives the market's health in one score out of 100, made of search visibility, the tracked
   searches, Google Maps, content and the open findings, and charts how each has moved: search traffic
   against each competitor, the site's keywords, tracked positions, the map, posting, content beside
@@ -85,7 +92,7 @@ Everything is at `/api/market/…`, listed in `/api/manifest`, so the `cms` CLI 
     cms post /api/market/plans '{}'                             # the AI drafts a plan (a minute or two)
     cms post /api/market/opportunities/12/page '{}'             # a draft page for an opportunity
     cms get /api/market/report                                  # the health score, its parts and every charted series
-    cms post /api/market/workups '{"subject":"keyword:4"}'      # AI suggestions: keyword:<id>, map:<keyword id>, visibility:own|<competitor id>, opportunity:<id>
+    cms post /api/market/workups '{"subject":"keyword:4"}'      # AI suggestions: keyword:<id>, map:<keyword id>, visibility:own|<competitor id>, opportunity:<id>, finding:<id>, page:<id>
     cms get /api/market/workups/7                               # its changes, and what each became
     cms post /api/market/workups/7/changes/0 '{}'               # send one on: page changes and posts are held in Approvals
 

@@ -4,8 +4,11 @@ module Market
   # What the data says about the site's market, as findings (Hashes for Finding.refresh):
   # each with a stable key, a kind, how much it matters, the channel it's about, a title and
   # detail in plain words, the figures behind it (evidence) and where they came from (sources).
-  # Reads only what's stored: a handful of queries, no outside calls.
+  # Reads only what's stored: a handful of queries, no outside calls (Google's figures are
+  # what the Google plugin last synced).
   class Finding::Analysis
+    include Finding::GoogleFindings
+
     GAP_LIMIT = 10
 
     def initialize
@@ -26,7 +29,7 @@ module Market
     def findings
       [profile_gaps, no_competitors, *keyword_gaps, ground, *competitor_surges, ranking_drops, outranked, not_ranking, map_pack,
         competitor_ads, location_pages, content_freshness, conversion_tools, unwatched_search_competitors, backlinks_gap,
-        *site_changes, *local_findings, stale_site, stale_search].compact
+        *site_changes, *local_findings, *google_findings, stale_site, stale_search].compact
     end
 
     private

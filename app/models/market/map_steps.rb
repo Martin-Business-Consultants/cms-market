@@ -23,7 +23,7 @@ class Market::MapSteps
     elsif @scan.nil?
       [(step(:pull, "Scan it", "The next pull checks this search on Google Maps from every point of the grid.", "Pull search data", market_search_pulls_path, tone: :urgent) if @settings.search_connected?)].compact
     else
-      [name, *watch, reviews, weak_area].compact
+      [name, answer_reviews, *watch, reviews, weak_area].compact
     end
   end
 
@@ -63,6 +63,18 @@ class Market::MapSteps
 
     step(:name, "It wasn't found anywhere", "Not in the top 20 at any point. If its name on Google Maps differs from #{@profile.business_name}, tell Market what it is; if it has no Google Business Profile, that's the first job.",
       "Set its name on Maps", edit_market_profile_path, method: :get, tone: :urgent)
+  end
+
+  # Reviews on the Business Profile nobody has answered (the Google plugin, when it's connected).
+  def answer_reviews
+    profile = defined?(::Google) && ::Google.respond_to?(:business_profile) && ::Google.business_profile
+    waiting = profile ? profile.unanswered_reviews : []
+    return if waiting.empty?
+
+    low = waiting.count { it["stars"].to_i <= 3 }
+    step(:answer_reviews, "Answer #{waiting.size} Google #{(waiting.size == 1) ? "review" : "reviews"}",
+      "#{"#{low} of them 3 stars or fewer. " if low.positive?}Answered reviews tell the next customer, and Google, that the business listens.",
+      "Open the reviews", "https://business.google.com/reviews", method: :get, tone: low.positive? ? :urgent : :normal)
   end
 
   # The leaders that aren't watched yet.

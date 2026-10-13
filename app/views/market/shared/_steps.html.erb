@@ -15,7 +15,8 @@
             <% if step.button? %>
               <%= button_to step.label, step.path, method: step.method, params: step.params, class: class_names("btn btn--sm", "btn--primary": step.tone == :urgent), form_class: "contents", form: {data: {turbo_frame: "_top"}} %>
             <% else %>
-              <%= link_to step.label, step.path, class: "btn btn--sm", data: {turbo_frame: "_top"} %>
+              <% outside = step.path.start_with?("http") %>
+              <%= link_to step.label, step.path, class: "btn btn--sm", data: {turbo_frame: (outside ? nil : "_top")}, target: (outside ? "_blank" : nil), rel: (outside ? "noopener" : nil) %>
             <% end %>
           </div>
         <% end %>
