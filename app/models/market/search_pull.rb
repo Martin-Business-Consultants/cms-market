@@ -47,14 +47,16 @@ class Market::SearchPull < ApplicationRecord
     api = Market::Search::Api::CEILINGS
     sites = 1 + Market::Competitor.watchable.count
     keywords = Market::Keyword.count
-    per_site = api[:overview] + api[:keywords] + api[:ai_overview] + (settings.backlinks? ? api[:backlinks] : 0) +
-      (settings.extra?(:business_profiles) ? api[:business_profile] : 0) + (settings.extra?(:web_mentions) ? api[:web_mentions] : 0)
+    per_site = api[:overview] + api[:keywords] + api[:ai_overview] + (settings.backlinks? ? api[:backlinks] + api[:backlink_history] : 0) +
+      (settings.extra?(:business_profiles) ? api[:business_profile] : 0) + (settings.extra?(:web_mentions) ? api[:web_mentions] : 0) +
+      (settings.extra?(:reviews) ? api[:reviews] : 0)
     profile = Market::Profile.current
     local = profile.local? ? keywords * profile.local_grid**2 * api[:maps] : 0
     ai = keywords * settings.ai_platforms.sum do |platform|
       {"google_ai_overview" => 0.005, "google_ai_mode" => api[:ai_mode], "chat_gpt" => api[:llm_scraper], "gemini" => api[:llm_scraper]}.fetch(platform, api[:llm_response])
     end
-    extras = (settings.extra?(:keyword_facts) ? api[:keyword_facts] + api[:ai_volume] + api[:serp_competitors] : 0) +
+    extras = (settings.extra?(:keyword_facts) ? api[:keyword_facts] + api[:ai_volume] + api[:serp_competitors] + api[:local_volume] : 0) +
+      (settings.backlinks? && sites > 1 ? api[:link_gap] : 0) +
       (settings.extra?(:ai_mentions) ? 2 * (api[:ai_mentions] + api[:ai_answers]) : 0) + (settings.extra?(:site_health) ? 2 * api[:site_health] : 0)
     (sites * per_site + api[:competitors] + keywords * api[:ranking] + local + ai + extras).round(2)
   end
@@ -71,6 +73,7 @@ class Market::SearchPull < ApplicationRecord
     raise Market::Search::Client::InvalidError.new("the site has no address (Settings › General) to pull for") unless @profile.domain
 
     gather(settings)
+    Market::QueuedTasksJob.set(wait: 2.minutes).perform_later if @queued
     finish(notes.any? { it.start_with?("Couldn't") } ? "partial" : "ready")
   rescue Market::Search::Client::Error => error
     Market::Settings.note_error(error.message) if error.is_a?(Market::Search::Client::AuthError) || error.is_a?(Market::Search::Client::FundsError)
@@ -89,7 +92,10 @@ class Market::SearchPull < ApplicationRecord
       part(competitor, domain, "overview") { @api.overview(domain) }
       part(competitor, domain, "keywords") { @api.keywords(domain) }
       part(competitor, domain, "ai_overview") { @api.ai_overview_keywords(domain) }
-      part(competitor, domain, "backlinks") { @api.backlinks(domain) } if settings.backlinks?
+      if settings.backlinks?
+        part(competitor, domain, "backlinks") { @api.backlinks(domain) }
+        part(competitor, domain, "backlink_history") { @api.backlink_history(domain) }
+      end
       part(competitor, domain, "web_mentions") { @api.web_mentions(competitor ? competitor.name : @profile.business_name) } if settings.extra?(:web_mentions)
     end
     part(nil, @profile.domain, "competitors") { @api.competitors(@profile.domain) }
@@ -115,7 +121,8 @@ class Market::SearchPull < ApplicationRecord
           note "Couldn't get AI search volumes: #{error.message}"
           {}
         end
-        {"keywords" => words.to_h { [it, facts.fetch(it, {}).merge("ai_volume" => volumes[it]).compact] }}
+        area, local = local_volumes(words)
+        {"area" => area, "keywords" => words.to_h { [it, facts.fetch(it, {}).merge("ai_volume" => volumes[it], "local_volume" => local.dig(it, "volume"), "local_cpc" => local.dig(it, "cpc")).compact] }}
       end
       part(nil, @profile.domain, "serp_competitors") { @api.serp_competitors(words) }
     end
@@ -130,7 +137,35 @@ class Market::SearchPull < ApplicationRecord
       part(nil, @profile.domain, "ai_answers") { {"answers" => platforms.flat_map { @api.ai_answers(@profile.domain, platform: it) }} }
     end
     part(nil, @profile.domain, "site_health") { @api.site_health(@profile.website.presence || "https://#{@profile.domain}") } if settings.extra?(:site_health)
-    business_profiles(sites) if settings.extra?(:business_profiles)
+    part(nil, @profile.domain, "link_gap") { @api.link_gap(@profile.domain, sites.filter_map { |competitor, domain| domain if competitor }) } if settings.backlinks? && sites.size > 1
+    business_profiles(sites) if settings.extra?(:business_profiles) || settings.extra?(:reviews)
+  end
+
+  # Searches a month in the business's city (Google Ads), when Google Ads knows the city: [area, {keyword => {"volume", "cpc"}}].
+  def local_volumes(words)
+    area = Market::AdsLocation.new(profile: @profile, settings: @settings).name(@api)
+    return [nil, {}] unless area
+
+    [area, @api.local_volume(words, area)]
+  rescue Market::Search::Client::Error => error
+    raise if Market::Search::Client.stopping?(error)
+
+    note "Couldn't get searches a month in the business's city: #{error.message}"
+    [nil, {}]
+  end
+
+  # Sets a queued task for each site's latest Google reviews; they're fetched when DataForSEO has done them.
+  def queue_reviews(competitor, domain, cid)
+    return if !force && Market::SearchSnapshot.fresh?(competitor, "reviews")
+    return if Market::QueuedTask.queued.where(kind: "reviews", competitor: competitor).exists?
+
+    task_id, endpoint = @api.post_reviews(cid, extended: competitor.nil?)
+    Market::QueuedTask.create!(kind: "reviews", competitor: competitor, pull: self, domain: domain, task_id: task_id, endpoint: endpoint, posted_at: Time.current)
+    @queued = true
+  rescue Market::Search::Client::Error => error
+    raise if Market::Search::Client.stopping?(error)
+
+    note "Couldn't ask for #{competitor ? competitor.name : @profile.business_name}'s reviews: #{error.message}"
   end
 
   def business_profiles(sites)
@@ -141,7 +176,8 @@ class Market::SearchPull < ApplicationRecord
       cid = competitor ? leaders.find { |row| row["cid"] && (row["title"].to_s.casecmp?(competitor.name) || (row["domain"] && Market::Probe.normalize(row["domain"]) == domain)) }&.dig("cid") : own
       next note("Business Profile for #{competitor ? competitor.name : @profile.business_name}: not found on Maps yet") unless cid
 
-      part(competitor, domain, "business_profile") { @api.business_profile(cid) }
+      part(competitor, domain, "business_profile") { @api.business_profile(cid) } if @settings.extra?(:business_profiles)
+      queue_reviews(competitor, domain, cid) if @settings.extra?(:reviews)
     end
   end
 

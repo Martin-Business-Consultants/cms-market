@@ -101,6 +101,14 @@
       <%= market_line_chart [share], label: "Share of points in the map's top 3" %>
     </section>
 
+    <% if report.links.any? %>
+      <section class="panel panel--padded stack stack--sm">
+        <h2 class="heading">Sites linking in</h2>
+        <p class="text-small text-muted">Each site's linking sites, month by month (DataForSEO Backlinks). <%= link_to "Links", market_search_path(anchor: "links"), class: "link" %></p>
+        <%= market_line_chart report.links, label: "Sites linking in, by month" %>
+      </section>
+    <% end %>
+
     <section class="panel panel--padded stack stack--sm">
       <h2 class="heading">Posting</h2>
       <p class="text-small text-muted">Posts in the last 90 days, at each weekly reading.</p>

@@ -60,6 +60,27 @@ RSpec.describe "Market search" do
       expect(@transport.calls).to be_empty
     end
 
+    it "sets a queued task, fetches it when done, and says when it isn't yet" do
+      created = JSON.generate({"status_code" => 20000, "cost" => 0.004, "tasks" => [{"id" => "abc-123", "status_code" => 20100, "status_message" => "Task Created.", "cost" => 0.004, "result" => nil}]})
+      queued = JSON.generate({"status_code" => 20000, "cost" => 0, "tasks" => [{"id" => "abc-123", "status_code" => 40602, "status_message" => "Task In Queue.", "result" => nil}]})
+      api = client([200, created], [200, queued], [200, dataforseo([{"rating" => {"value" => 4.5}, "reviews_count" => 3, "items" => [{"type" => "google_reviews_search", "review_text" => "Fine", "rating" => {"value" => 4}, "owner_answer" => "Thanks"}]}], cost: 0)])
+      search = Market::Search::Api.new(client: api)
+      id, endpoint = search.post_reviews("111")
+      expect([id, endpoint]).to eq(["abc-123", "business_data/google/reviews/task_get"])
+      expect(@transport.calls.first[2].first).to include(cid: "111", depth: 50, sort_by: "newest")
+
+      task = Market::QueuedTask.new(kind: "reviews", task_id: id, endpoint: endpoint)
+      expect { search.queued_result(task) }.to raise_error(Market::Search::Client::NotReady)
+      expect(search.queued_result(task)).to include("rating" => 4.5, "count" => 3, "reviews" => [a_hash_including("text" => "Fine", "stars" => 4, "answered" => true)])
+      expect(@transport.calls.last[1].to_s).to end_with("/v3/business_data/google/reviews/task_get/abc-123")
+    end
+
+    it "uses DataForSEO's sandbox in test mode" do
+      Market::Settings.update("sandbox" => "1")
+      client([200, dataforseo([{"items" => []}])]).post("dataforseo_labs/google/domain_rank_overview/live", {target: "acme.example"}, target: "acme.example", ceiling: 0.05)
+      expect(@transport.calls.first[1].to_s).to start_with("https://sandbox.dataforseo.com/v3/")
+    end
+
     it "keeps the balance, which costs nothing" do
       balance = Market::Settings.check!(client: client([200, dataforseo([{"money" => {"balance" => 42.5}}], cost: 0)]))
 
@@ -130,7 +151,7 @@ RSpec.describe "Market search" do
     it "says the most it could cost before it runs" do
       expect(described_class.ceiling).to eq((2 * (0.05 + 0.25 + 0.05) + 0.10 + 2 * 0.02).round(2))
       Market::Settings.update("ai_platforms" => %w[google_ai_overview chat_gpt claude], "extras" => %w[keyword_facts])
-      expect(described_class.ceiling).to eq((2 * (0.05 + 0.25 + 0.05) + 0.10 + 2 * 0.02 + 2 * (0.005 + 0.01 + 0.08) + 0.15 + 0.05 + 0.05).round(2))
+      expect(described_class.ceiling).to eq((2 * (0.05 + 0.25 + 0.05) + 0.10 + 2 * 0.02 + 2 * (0.005 + 0.01 + 0.08) + 0.15 + 0.05 + 0.05 + 0.1).round(2))
     end
 
     it "asks each tracked search of each AI, noting who's named and cited, and pulls the extras" do
@@ -164,6 +185,42 @@ RSpec.describe "Market search" do
       overview = Market::Search::Overview.new
       expect(overview.ai_summary["claude"]).to include(answered: 1, named: 1, cited: 1)
       expect(overview.ai_named_others.to_h).to include("Rival" => 3)
+    end
+
+    it "queues Google reviews and fetches them when they're done, reads the AI's themes, and pulls links and the city's searches" do
+      switch_plugin :ai, on: true
+      Ai::Settings.update("provider" => "opencode", "api_key" => "zen-key")
+      Market::Settings.update("ai_platforms" => [], "extras" => %w[keyword_facts reviews], "backlinks" => "1")
+      Market::LocalScan.create!(keyword: Market::Keyword.first, zip: "62701", center_lat: 39.8, center_lng: -89.6, radius_miles: 5, grid: 3, average_position: 4,
+        top3_share: 0.2, found_points: 9, checked_at: Time.current, points: [{"row" => 0, "col" => 0, "position" => 4, "cid" => "111"}],
+        leaders: [{"title" => "Rival", "domain" => "rival.example", "top3_points" => 9, "cid" => "222"}])
+      fake = api(ai: {reviews_pending: true})
+
+      expect { pull.run!(api: fake) }.to have_enqueued_job(Market::QueuedTasksJob)
+      expect(fake.calls).to include("post_reviews:111", "post_reviews:222", "backlink_history:acme.example", "link_gap", "ads_locations:US",
+        "local_volume:Springfield,Illinois,United States")
+      expect(Market::QueuedTask.queued.pluck(:endpoint)).to contain_exactly("business_data/google/extended_reviews/task_get", "business_data/google/reviews/task_get")
+      facts = Market::SearchSnapshot.find_by!(kind: "keyword_facts").data
+      expect(facts).to include("area" => "Springfield,Illinois,United States")
+      expect(facts["keywords"]["emergency plumber"]).to include("local_volume" => 90, "local_cpc" => 14.0, "volume" => 880)
+
+      expect(Market::QueuedTask.fetch_ready!(api: fake)).to eq(2)
+      expect(Market::QueuedTask.queued.first.attempts).to eq(1)
+
+      allow(Ai).to receive(:structured).and_return("sites" => [{"key" => "site", "praise" => ["fair prices"], "complaints" => ["slow callbacks"]},
+        {"key" => "competitor:#{rival.id}", "praise" => ["fast"], "complaints" => []}], "advice" => "Call back within the hour.")
+      done = api
+      expect(Market::QueuedTask.fetch_ready!(api: done)).to eq(0)
+      own = Market::SearchSnapshot.find_by!(kind: "reviews", competitor_id: nil).data
+      expect(own).to include("rating" => 4.1, "themes" => {"praise" => ["fair prices"], "complaints" => ["slow callbacks"]}, "advice" => "Call back within the hour.")
+      expect(Market::Finding.pluck(:kind)).to include("reviews_unanswered", "review_pace", "review_complaints", "links_falling", "link_gap")
+      expect(Market::Workup::Brief.new("visibility:own").to_s).to include("praise fair prices", "springfieldchamber.example")
+    end
+
+    it "gives up on a queued task DataForSEO never finishes, and keeps one that failed" do
+      task = Market::QueuedTask.create!(kind: "reviews", task_id: "t1", endpoint: "business_data/google/reviews/task_get", posted_at: 7.hours.ago)
+      Market::QueuedTask.fetch_ready!(api: api(ai: {reviews_pending: true}))
+      expect(task.reload).to have_attributes(state: "failed", error: a_string_including("hadn't done it"))
     end
   end
 end

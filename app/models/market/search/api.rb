@@ -13,7 +13,9 @@ module Market
     class Api
       CEILINGS = {overview: 0.05, keywords: 0.25, competitors: 0.10, backlinks: 0.10, ranking: 0.02, maps: 0.02,
                   ai_overview: 0.05, ai_mode: 0.01, llm_scraper: 0.01, llm_response: 0.08, ai_mentions: 0.25, ai_answers: 0.15,
-                  keyword_facts: 0.15, ai_volume: 0.05, serp_competitors: 0.05, business_profile: 0.01, site_health: 0.02, web_mentions: 0.05}.freeze
+                  keyword_facts: 0.15, ai_volume: 0.05, serp_competitors: 0.05, business_profile: 0.01, site_health: 0.02, web_mentions: 0.05,
+                  reviews: 0.01, backlink_history: 0.05, link_gap: 0.07, local_volume: 0.1}.freeze
+      REVIEWS = 50
       COUNTRY_CODES = {"United States" => "US", "United Kingdom" => "GB", "Canada" => "CA", "Australia" => "AU", "Ireland" => "IE", "New Zealand" => "NZ",
                        "Germany" => "DE", "France" => "FR", "Spain" => "ES", "Italy" => "IT", "Netherlands" => "NL", "Mexico" => "MX", "Brazil" => "BR",
                        "India" => "IN", "South Africa" => "ZA"}.freeze
@@ -256,6 +258,58 @@ module Market
          "issues" => checks.first(20), "lcp_ms" => item.dig("page_timing", "largest_contentful_paint")&.round, "lighthouse" => scores}.compact
       end
 
+      # Google reviews (only queued, Standard method): sets the task for a business by its Maps id,
+      # the newest first; its result comes with #queued_result. The site's own as Extended Reviews,
+      # which also carries the other sites' reviews Google shows (Yelp, Facebook…).
+      def post_reviews(cid, extended: false)
+        endpoint = extended ? "business_data/google/extended_reviews" : "business_data/google/reviews"
+        task = {cid: cid.to_s, location_name: @setting.country, language_code: @setting.language_code, depth: REVIEWS, sort_by: "newest"}
+        [@client.post_task("#{endpoint}/task_post", task, target: "cid:#{cid}", ceiling: CEILINGS[:reviews]), "#{endpoint}/task_get"]
+      end
+
+      # A queued task's result, by its kind; NotReady until DataForSEO has done it.
+      def queued_result(task)
+        result = @client.task_result("#{task.endpoint}/#{task.task_id}").first || {}
+        case task.kind
+        when "reviews" then reviews_from(result)
+        end
+      end
+
+      # A site's links month by month for the last year (Backlinks history): rank, linking sites, new and lost.
+      def backlink_history(domain)
+        task = {target: domain, date_from: 12.months.ago.to_date.beginning_of_month.iso8601, rank_scale: "one_hundred"}
+        result = @client.post("backlinks/history/live", task, target: domain, ceiling: CEILINGS[:backlink_history]).first || {}
+        {"months" => Array(result["items"]).map do |item|
+          {"date" => item["date"].to_s.first(10), "rank" => item["rank"].to_i, "backlinks" => item["backlinks"].to_i, "referring_domains" => item["referring_domains"].to_i,
+           "new_referring_domains" => item["new_referring_domains"].to_i, "lost_referring_domains" => item["lost_referring_domains"].to_i}
+        end.sort_by { it["date"] }}
+      end
+
+      # The sites linking to competitors but not to the site (Backlinks domain intersection): where to get links.
+      def link_gap(own, competitors)
+        targets = competitors.first(20).each_with_index.to_h { |domain, index| [(index + 1).to_s, domain] }
+        task = {targets: targets, exclude_targets: [own], intersection_mode: "partial", limit: 40, order_by: ["1.rank,desc"], rank_scale: "one_hundred"}
+        result = @client.post("backlinks/domain_intersection/live", task, target: own, ceiling: CEILINGS[:link_gap]).first || {}
+        {"total" => result["total_count"].to_i,
+         "sites" => Array(result["items"]).filter_map do |item|
+           linked = item["domain_intersection"].to_h.compact
+           first = linked.values.first or next
+           {"domain" => Market::Probe.normalize(first["target"]), "rank" => linked.values.map { it["rank"].to_i }.max,
+            "links_to" => linked.keys.map { targets[it] }.compact, "spam" => first["backlinks_spam_score"].to_i}
+         end.sort_by { [-it["links_to"].size, -it["rank"]] }}
+      end
+
+      # Google Ads' monthly searches and cost per click for the tracked searches in one area (a city,
+      # by its Google Ads location name): what they're worth where the business is.
+      def local_volume(keywords, location_name)
+        task = {keywords: keywords.first(1000), location_name: location_name, language_code: @setting.language_code}
+        result = @client.post("keywords_data/google_ads/search_volume/live", task, target: location_name, ceiling: CEILINGS[:local_volume])
+        Array(result).to_h { [it["keyword"], {"volume" => it["search_volume"], "cpc" => it["cpc"]&.to_f&.round(2), "competition" => it["competition"]}.compact] }
+      end
+
+      # Google Ads' locations in a country (free): [{"location_name", "location_type", "location_code"}].
+      def ads_locations(country_iso) = Array(@client.get("keywords_data/google_ads/locations/#{country_iso.downcase}"))
+
       # The web talking about a business by name (Content Analysis): how often, how warmly, and where.
       def web_mentions(name)
         result = @client.post("content_analysis/summary/live", {keyword: name, internal_list_limit: 8}, target: name, ceiling: CEILINGS[:web_mentions]).first || {}
@@ -266,6 +320,18 @@ module Market
       private
 
       def labs_task(**fields) = {location_name: @setting.country, language_code: @setting.language_code, **fields}
+
+      def reviews_from(result)
+        reviews = Array(result["items"]).filter_map do |item|
+          next unless item["type"].to_s.include?("review") || item["review_text"] || item["rating"]
+
+          {"text" => item["review_text"].to_s.truncate(1000), "stars" => item.dig("rating", "value")&.to_i, "at" => item["timestamp"], "reviewer" => item["profile_name"],
+           "answered" => item["owner_answer"].present?, "source" => item.dig("source", "title") || item["source"]&.then { it.is_a?(String) ? it : nil } || "Google",
+           "url" => item["review_url"]}.compact
+        end
+        {"title" => result["title"], "rating" => result.dig("rating", "value"), "count" => (result["reviews_count"] || result.dig("rating", "votes_count")).to_i,
+         "cid" => result["cid"], "reviews" => reviews}
+      end
 
       def where(location, radius: false)
         return {location_name: location} unless location.is_a?(Array)

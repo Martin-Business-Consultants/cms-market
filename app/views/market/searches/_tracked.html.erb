@@ -16,7 +16,7 @@
             <th class="market-group" title="Google's results, checked live">Google</th>
             <% if platforms.any? %><th class="market-group" colspan="<%= platforms.size %>">AI search</th><% end %>
             <th class="market-group">Maps</th>
-            <th class="market-group" colspan="2" title="Searches a month (Google: DataForSEO Labs; AI: DataForSEO AI Keyword Data)">A month</th>
+            <th class="market-group" colspan="3" title="Searches a month: in the business's city (Google Ads), the country (DataForSEO Labs) and in AI assistants (DataForSEO AI Keyword Data)">A month</th>
             <th rowspan="2"></th>
           </tr>
           <tr>
@@ -26,7 +26,8 @@
               <th class="market-sub" title="<%= Market::AiCheck::PLATFORMS.dig(platform, :how) %>"><%= Market::AiCheck.platform_name(platform) %></th>
             <% end %>
             <th class="market-sub">Average</th>
-            <th class="market-sub data-table__num">Google</th>
+            <th class="market-sub data-table__num" title="<%= data.volume_area || "The business's city, once Google Ads knows it" %>">Here</th>
+            <th class="market-sub data-table__num" title="<%= settings.country %>">Country</th>
             <th class="market-sub data-table__num">AI</th>
           </tr>
         </thead>
@@ -57,6 +58,7 @@
                   <span class="text-faint">—</span>
                 <% end %>
               </td>
+              <td class="data-table__num text-small" title="<%= row[:facts]["local_cpc"] ? "#{market_money row[:facts]["local_cpc"]} a click here" : nil %>"><%= row[:facts]["local_volume"] ? number_with_delimiter(row[:facts]["local_volume"]) : "—" %></td>
               <td class="data-table__num text-small"><%= row[:facts]["volume"] ? number_with_delimiter(row[:facts]["volume"]) : "—" %></td>
               <td class="data-table__num text-small"><%= row[:facts]["ai_volume"] ? number_with_delimiter(row[:facts]["ai_volume"]) : "—" %></td>
               <td>
@@ -75,7 +77,7 @@
       <span class="market-ai market-ai--named">●</span> named (¹ its place among the businesses Market knows: the site and its competitors, and ChatGPT's business cards) ·
       <span class="market-ai market-ai--cited">◐</span> cited the site without naming it ·
       <span class="market-ai market-ai--missing">○</span> answered without it · <span class="market-ai">–</span> no answer ·
-      <%= market_source :live %> <%= market_source :ai %> <%= market_source :maps %>
+      <%= market_source :live %> <%= market_source :ai %> <%= market_source :maps %> <%= market_source :ads %>
     </p>
   <% else %>
     <p class="text-small text-muted">None yet. Track the searches customers make; each is checked on Google, asked of each AI and checked on Maps on every pull.</p>

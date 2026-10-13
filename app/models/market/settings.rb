@@ -11,7 +11,8 @@ class Market::Settings
   REFRESH_EVERY = {"monthly" => 1.month, "weekly" => 1.week}.freeze
   # What a pull gathers beyond each site's visibility and keywords, the tracked searches and the map.
   EXTRAS = {
-    "keyword_facts" => "Keyword facts: Google and AI searches a month, difficulty and intent for each tracked search",
+    "keyword_facts" => "Keyword facts: searches a month in the business's city (Google Ads), the country and AI assistants, difficulty and intent for each tracked search",
+    "reviews" => "Google reviews: the latest 50 of the site and of each competitor, read by the AI for what customers praise and complain about (they arrive a few minutes after the pull)",
     "ai_mentions" => "AI share of voice: how often real ChatGPT and Google AI answers mention each site, and what they cite",
     "business_profiles" => "Business Profiles: the site's and each competitor's Google profile, as customers see it",
     "site_health" => "Site health: the home page as Google renders it, and Lighthouse on a phone",
@@ -20,6 +21,7 @@ class Market::Settings
   DEFAULTS = {"monthly_budget_cents" => 2500, "country" => "United States", "language_code" => "en", "refresh" => "off",
               "keyword_limit" => 200, "backlinks" => false, "sandbox" => false,
               "ai_platforms" => %w[google_ai_overview google_ai_mode chat_gpt gemini perplexity claude], "extras" => EXTRAS.keys}.freeze
+  # Backlinks (Settings › Market › Backlinks too) brings each site's links month by month, and the sites linking to competitors but not the site.
 
   def self.current = new(Setting.get(KEY))
 

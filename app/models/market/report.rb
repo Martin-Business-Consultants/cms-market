@@ -22,7 +22,7 @@ class Market::Report
 
   # The parts there's data for, each 0–100.
   def parts
-    @parts ||= [search_part, rankings_part, ai_part, maps_part, content_part, findings_part, *google_parts].compact
+    @parts ||= [search_part, rankings_part, ai_part, maps_part, reviews_part, content_part, findings_part, *google_parts].compact
   end
 
   def score = parts.any? ? (parts.sum(&:score).to_f / parts.size).round : nil
@@ -63,6 +63,18 @@ class Market::Report
       weeks = Market::AiCheck.where(checked_at: @since.., answered: true).pluck(:checked_at, :mentioned, :cited).group_by { it[0].to_date.beginning_of_week }.sort
       [Series.new(name: "Named it (%)", points: weeks.map { |week, rows| [week.to_time, (rows.count { it[1] } * 100.0 / rows.size).round] }, own: true),
         Series.new(name: "Cited its site (%)", points: weeks.map { |week, rows| [week.to_time, (rows.count { it[2] } * 100.0 / rows.size).round] }, own: false)]
+    end
+  end
+
+  # Sites linking in, by month (Backlinks history): the site and each competitor.
+  def links
+    @links ||= begin
+      names = @competitors.to_h { [it.id, it.name] }
+      Market::SearchSnapshot.latest_by_site(@competitors.map(&:id), kinds: ["backlink_history"]).filter_map do |id, kinds|
+        snapshot = kinds.dig("backlink_history", 0) or next
+        Series.new(name: id ? names[id] : @profile.business_name, own: id.nil?,
+          points: Array(snapshot.data["months"]).map { [Time.zone.parse(it["date"]), it["referring_domains"].to_f] }.select { it[0] && it[0] >= @since })
+      end.sort_by { it.own ? 0 : 1 }
     end
   end
 
@@ -221,6 +233,16 @@ class Market::Report
     cited = latest.count(&:cited)
     Part.new(key: :ai, label: "AI search", score: ((named + cited * 0.5) * 100.0 / latest.size).clamp(0, 100).round,
       detail: "Named in #{named} of #{latest.size} AI answers to the tracked searches, its site cited in #{cited}", path: :market_search_path)
+  end
+
+  def reviews_part
+    reviews = Market::SearchSnapshot.where(competitor_id: nil, kind: "reviews").latest_first.first&.data or return
+    list = Array(reviews["reviews"])
+    return if list.empty?
+
+    answered = list.count { it["answered"] } * 100 / list.size
+    Part.new(key: :reviews, label: "Reviews", score: ((reviews["rating"].to_f / 5 * 70) + answered * 0.3).clamp(0, 100).round,
+      detail: "#{reviews["rating"]}★ from #{reviews["count"]}; #{answered}% of the latest #{list.size} answered", path: :market_search_path)
   end
 
   def maps_part

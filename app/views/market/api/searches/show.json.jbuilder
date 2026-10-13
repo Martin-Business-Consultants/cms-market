@@ -9,6 +9,9 @@ json.sources({
   maps: "Google Maps from a grid across the area (DataForSEO SERP API)",
   business: "Google Business Profiles (DataForSEO Business Data API)",
   site: "The home page rendered and Lighthouse on a phone (DataForSEO On-Page API)",
+  reviews: "Each business's latest Google reviews (DataForSEO Business Data API, queued; read for themes by the AI plugin)",
+  backlinks: "Linking sites month by month, and sites linking to competitors but not the site (DataForSEO Backlinks API)",
+  local_volume: "Searches a month in the business's city (DataForSEO Keywords Data, Google Ads)",
   web: "Pages naming each business (DataForSEO Content Analysis API)"
 })
 json.sandbox settings.sandbox?
@@ -37,6 +40,8 @@ json.sites @data.sites do |site|
   json.ai_overview_citations site.ai_overview&.data
   json.business_profile site.business_profile&.data
   json.web_mentions site.web_mentions&.data
+  json.reviews site.reviews&.data
+  json.backlink_history site.backlink_history&.data&.dig("months")
   json.keywords_total site.keywords&.data&.dig("total")
   json.keywords Array(site.keywords&.data&.dig("keywords")).first(@limit)
 end
@@ -79,3 +84,6 @@ json.ai_search do
 end
 json.who_wins @data.market("serp_competitors")&.data&.dig("sites")
 json.site_health @data.market("site_health")&.data
+json.link_gap @data.market("link_gap")&.data
+json.local_volume_area @data.volume_area
+json.reviews_on_their_way @data.reviews_waiting?

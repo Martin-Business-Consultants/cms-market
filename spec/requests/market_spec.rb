@@ -264,6 +264,26 @@ RSpec.describe "Market", type: :request do
       expect(response.parsed_body["sources"]).to include("ai", "estimate")
     end
 
+    it "shows reviews, links and searches a month in the city on Search and the report" do
+      keyword = Market::Keyword.track("plumber").first.first
+      Market::SearchSnapshot.create!(competitor: nil, domain: "acme.example", kind: "keyword_facts", taken_at: Time.current,
+        data: {"area" => "Springfield,Illinois,United States", "keywords" => {"plumber" => {"local_volume" => 90, "volume" => 880, "ai_volume" => 40}}})
+      Market::SearchSnapshot.create!(competitor: nil, domain: "acme.example", kind: "reviews", taken_at: Time.current,
+        data: {"rating" => 4.1, "count" => 9, "reviews" => [{"text" => "Slow to call back", "stars" => 2, "reviewer" => "Pat", "answered" => false, "at" => 1.day.ago.iso8601, "url" => "https://maps.google.com/r/1"}],
+               "themes" => {"praise" => ["fair prices"], "complaints" => ["slow callbacks"]}, "advice" => "Call back within the hour."})
+      Market::SearchSnapshot.create!(competitor: nil, domain: "acme.example", kind: "backlink_history", taken_at: Time.current,
+        data: {"months" => [{"date" => 11.months.ago.to_date.iso8601, "referring_domains" => 80}, {"date" => Date.current.iso8601, "referring_domains" => 60, "new_referring_domains" => 2, "lost_referring_domains" => 5}]})
+      Market::SearchSnapshot.create!(competitor: nil, domain: "acme.example", kind: "link_gap", taken_at: Time.current,
+        data: {"total" => 1, "sites" => [{"domain" => "springfieldchamber.example", "links_to" => ["rival.example"], "rank" => 55}]})
+      Market::QueuedTask.create!(kind: "reviews", competitor: rival, task_id: "t", endpoint: "business_data/google/reviews/task_get", posted_at: Time.current)
+
+      get market_search_path
+      expect(response.body).to include("Reviews", "fair prices", "slow callbacks", "Call back within the hour.", "Not answered yet", "Answer it",
+        "on their way", "Links", "springfieldchamber.example", "Linking to competitors, not to the site", "Here", "90")
+      get market_report_path
+      expect(response.body).to include("Sites linking in")
+    end
+
     it "keeps secrets out of Settings › Market" do
       patch settings_market_path, params: {market: {dataforseo_login: "api@example.com", dataforseo_password: "secret-pass", monthly_budget_dollars: "40.50",
                                                     refresh: "weekly"}}

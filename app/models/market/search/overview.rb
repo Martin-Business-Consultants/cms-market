@@ -8,7 +8,8 @@
 # facts, who wins the tracked searches, Business Profiles, site health, web
 # mentions. A few queries in all.
 class Market::Search::Overview
-  Site = Data.define(:name, :domain, :competitor, :overview, :previous, :keywords, :backlinks, :ai_overview, :business_profile, :web_mentions) do
+  Site = Data.define(:name, :domain, :competitor, :overview, :previous, :keywords, :backlinks, :ai_overview, :business_profile, :web_mentions,
+    :reviews, :backlink_history) do
     def own? = competitor.nil?
     def pulled? = overview.present?
     def figure(key) = overview&.data&.dig(key)
@@ -52,6 +53,12 @@ class Market::Search::Overview
   def ai_cited_domains = all_checks.flat_map(&:source_domains).tally.sort_by { -it[1] }.first(12)
   def all_checks = @ai.values.flat_map(&:values).select(&:answered)
 
+  # Reviews still being fetched from DataForSEO's queue.
+  def reviews_waiting? = Market::QueuedTask.queued.where(kind: "reviews").exists?
+
+  # The area the local searches a month are for ("Grand Rapids,Michigan,United States").
+  def volume_area = market("keyword_facts")&.data&.dig("area")
+
   # One search's facts: Google's volume, AI's, difficulty, intent.
   def keyword_fact(keyword) = market("keyword_facts")&.data&.dig("keywords", keyword.keyword) || {}
 
@@ -89,6 +96,7 @@ class Market::Search::Overview
     overview, previous = kinds["overview"]
     Site.new(name: name, domain: domain, competitor: competitor, overview: overview, previous: previous,
       keywords: kinds["keywords"]&.first, backlinks: kinds["backlinks"]&.first, ai_overview: kinds["ai_overview"]&.first,
-      business_profile: kinds["business_profile"]&.first, web_mentions: kinds["web_mentions"]&.first)
+      business_profile: kinds["business_profile"]&.first, web_mentions: kinds["web_mentions"]&.first, reviews: kinds["reviews"]&.first,
+      backlink_history: kinds["backlink_history"]&.first)
   end
 end

@@ -84,6 +84,26 @@ module MarketHelpers
     def serp_competitors(keywords) = answer("serp_competitors") { {"sites" => [{"domain" => "rival.example", "visibility" => 0.4, "keywords" => 2, "average_position" => 2.0}]} }
     def business_profile(cid) = answer("business_profile:#{cid}") { {"title" => "Acme", "claimed" => false, "photos" => 2, "rating" => 4.1, "reviews" => 9, "hours" => false, "description" => true, "cid" => cid} }
     def site_health(url) = answer("site_health") { {"url" => url, "onpage_score" => 71, "lighthouse" => {"performance" => 38, "seo" => 92}, "issues" => ["no_image_alt"]} }
+    def post_reviews(cid, extended: false) = answer("post_reviews:#{cid}") { ["task-#{cid}", "business_data/google/#{extended ? "extended_" : ""}reviews/task_get"] }
+
+    def queued_result(task)
+      answer("queued_result:#{task.task_id}") do
+        raise Market::Search::Client::NotReady.new("DataForSEO 40602: Task In Queue.") if @ai[:reviews_pending]
+
+        own = task.competitor.nil?
+        {"rating" => own ? 4.1 : 4.8, "count" => own ? 9 : 400, "reviews" => (own ? 6 : 10).times.map do |index|
+          {"text" => own ? "Slow to call back" : "Great", "stars" => own ? 3 : 5, "at" => (own ? index * 40 : index).days.ago.iso8601, "reviewer" => "Pat #{index}", "answered" => own ? index.zero? : true}
+        end}
+      end
+    end
+
+    def backlink_history(domain)
+      answer("backlink_history:#{domain}") { {"months" => 12.times.map { |index| {"date" => (11 - index).months.ago.to_date.iso8601, "referring_domains" => 100 - index * 3, "new_referring_domains" => 1, "lost_referring_domains" => 4, "rank" => 30} }} }
+    end
+
+    def link_gap(own, competitors) = answer("link_gap") { {"total" => 2, "sites" => [{"domain" => "springfieldchamber.example", "links_to" => competitors, "rank" => 55}]} }
+    def ads_locations(iso) = answer("ads_locations:#{iso}") { [{"location_name" => "Springfield,Illinois,United States", "location_type" => "City"}, {"location_name" => "Springfield,Missouri,United States", "location_type" => "City"}] }
+    def local_volume(keywords, area) = answer("local_volume:#{area}") { keywords.to_h { [it, {"volume" => 90, "cpc" => 14.0}] } }
     def web_mentions(name) = answer("web_mentions:#{name}") { {"total" => (name == "Acme Plumbing") ? 4 : 60, "connotations" => {"positive" => 3}, "top_domains" => ["yelp.com"]} }
 
     private

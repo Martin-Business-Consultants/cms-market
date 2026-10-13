@@ -101,7 +101,10 @@ module Market
       maps: ["Google Maps, checked live", "Maps checked from points across the business's area by DataForSEO"],
       business: ["Business Profile", "Google Business Profiles as customers see them, read by DataForSEO"],
       site: ["Site check", "The home page rendered as Google does, and Lighthouse on a phone, by DataForSEO"],
-      web: ["Web mentions", "Pages across the web that name the business, found by DataForSEO"]
+      web: ["Web mentions", "Pages across the web that name the business, found by DataForSEO"],
+      reviews: ["Google reviews", "Each business's latest Google reviews, read by DataForSEO (its queue) and the AI plugin"],
+      backlinks: ["Backlinks", "Links from other sites, from DataForSEO's Backlinks index"],
+      ads: ["Google Ads", "Searches a month and cost per click from Google Ads, through DataForSEO"]
     }.freeze
 
     def market_source(kind)

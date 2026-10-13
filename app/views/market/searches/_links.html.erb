@@ -1,0 +1,48 @@
+<%# locals: (data:) %>
+<%# Links (DataForSEO Backlinks): each site's linking sites a year ago and now, with the last three months' new and lost; and the sites linking to competitors but not the site, the places to get a link. %>
+<% sites = data.sites.select(&:backlink_history) %>
+<% gap = data.market("link_gap")&.data %>
+<% if sites.any? || gap %>
+  <section class="panel panel--padded stack stack--sm" id="links">
+    <div class="row row--between">
+      <h2 class="heading">Links <%= market_source :backlinks %></h2>
+      <span class="text-small text-muted">Other sites linking in: what search engines, and AI, count as trust</span>
+    </div>
+    <% if sites.any? %>
+      <table class="data-table market-evidence-table">
+        <thead><tr><th>Site</th><th class="data-table__num">Linking sites</th><th class="data-table__num">A year ago</th><th class="data-table__num">New, 3 months</th><th class="data-table__num">Lost, 3 months</th><th class="data-table__num">Rank</th></tr></thead>
+        <tbody>
+          <% sites.each do |site| %>
+            <%# herb:key site.domain %>
+            <% months = Array(site.backlink_history.data["months"]) %>
+            <% last = months.last || {} %>
+            <% recent = months.last(3) %>
+            <tr class="<%= class_names("market-compare__own": site.own?) %>">
+              <td><strong><%= site.name %></strong></td>
+              <td class="data-table__num"><%= market_change last["referring_domains"], months.first&.dig("referring_domains") %></td>
+              <td class="data-table__num"><%= number_with_delimiter months.first&.dig("referring_domains").to_i %></td>
+              <td class="data-table__num"><%= number_with_delimiter recent.sum { it["new_referring_domains"].to_i } %></td>
+              <td class="data-table__num"><%= number_with_delimiter recent.sum { it["lost_referring_domains"].to_i } %></td>
+              <td class="data-table__num"><%= last["rank"] || "—" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% end %>
+    <% if gap && Array(gap["sites"]).any? %>
+      <div class="stack stack--xs">
+        <h3 class="label">Linking to competitors, not to the site (<%= number_with_delimiter gap["total"] %>)</h3>
+        <p class="text-small text-muted">Directories, associations, local press and partners that link to competitors: the likeliest to link to the business too.</p>
+        <table class="data-table market-evidence-table">
+          <thead><tr><th>Site</th><th>Links to</th><th class="data-table__num">Rank</th></tr></thead>
+          <tbody>
+            <% gap["sites"].first(15).each do |row| %>
+              <%# herb:key row["domain"] %>
+              <tr><td><%= link_to row["domain"], "https://#{row["domain"]}", class: "link", target: "_blank", rel: "noopener" %></td><td class="text-small"><%= Array(row["links_to"]).join(", ") %></td><td class="data-table__num"><%= row["rank"] %></td></tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+  </section>
+<% end %>

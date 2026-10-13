@@ -40,6 +40,7 @@ module Market
       class InvalidError < Error; end    # this request is wrong (a location, a field): skip it
       class UnavailableError < Error; end # not in the plan (backlinks without the subscription): skip it
       class Transient < Error; end       # tried MAX_ATTEMPTS times and still failing
+      class NotReady < Error; end        # a queued task that isn't done yet: ask again later
 
       STOPPING = [AuthError, FundsError, BudgetError].freeze
 
@@ -53,15 +54,24 @@ module Market
       end
 
       # One live task: the task's `result` array. `ceiling` is the most it might cost, in dollars.
-      def post(endpoint, task, target:, ceiling:)
+      def post(endpoint, task, target:, ceiling:, created: false)
         raise AuthError.new("DataForSEO isn't connected: add the login and password in Settings › Market.") unless @setting.search_connected?
         if ceiling.to_d > @setting.remaining_budget
           raise BudgetError.new("This month's search budget ($#{format("%.2f", @setting.budget)}) has $#{format("%.2f", @setting.remaining_budget)} left: " \
                                 "not enough for #{endpoint.split("/")[-2] || endpoint} on #{target}. Raise it in Settings › Market.")
         end
 
-        call(:post, endpoint, [task], target: target)
+        call(:post, endpoint, [task], target: target, created: created)
       end
+
+      # A queued task set (task_post, Standard): its id, to fetch with #task_result once DataForSEO has done it.
+      def post_task(endpoint, task, target:, ceiling:)
+        post(endpoint, task, target: target, ceiling: ceiling, created: true)
+        @last_task&.dig("id") or raise InvalidError.new("DataForSEO set no task for #{endpoint}")
+      end
+
+      # A queued task's result (task_get, free): its `result` array; NotReady while it's still being done.
+      def task_result(endpoint) = get(endpoint)
 
       # A free GET (a list of models or locations): the task's `result` array.
       def get(endpoint)
@@ -79,7 +89,7 @@ module Market
 
       private
 
-      def call(method, endpoint, body, target:)
+      def call(method, endpoint, body, target:, created: false)
         attempts = 0
         started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         json = nil
@@ -88,8 +98,9 @@ module Market
           attempts += 1
           json = parse(*@transport.call(method, (@setting.sandbox? ? SANDBOX : BASE) + endpoint, body))
           task = Array(json["tasks"]).first || {}
+          @last_task = task
           check!(json["status_code"], json["status_message"])
-          check!(task["status_code"], task["status_message"])
+          check!(task["status_code"], task["status_message"]) unless created && task["status_code"].to_i == 20100
           Array(task["result"])
         rescue Transient => failure
           if attempts < MAX_ATTEMPTS
@@ -121,6 +132,7 @@ module Market
 
         text = "DataForSEO #{code}: #{message}"
         raise case
+        when code.in?([40601, 40602]) then NotReady.new(text, code:)
         when code == 40100 then AuthError.new("#{text}. Check the login and password in Settings › Market.", code:)
         when code.in?([40200, 40210, 40203]) then FundsError.new("#{text}. Top up the DataForSEO account, or raise its limit.", code:)
         when RETRY_CODES.include?(code) || code >= 50000 then Transient.new(text, code:)

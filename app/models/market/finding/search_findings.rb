@@ -9,7 +9,8 @@ module Market
     private
 
     def search_findings
-      [*ai_not_named, ai_named_instead, ai_cited_sites, ai_share_of_voice, *profile_findings, *health_findings, web_mentions_gap, questions_to_answer].compact
+      [*ai_not_named, ai_named_instead, ai_cited_sites, ai_share_of_voice, *profile_findings, *health_findings, web_mentions_gap, questions_to_answer,
+        *review_findings, *link_findings].compact
     end
 
     def ai_checks = @ai_checks ||= Market::AiCheck.latest_for(keywords)
@@ -124,6 +125,58 @@ module Market
       finding("web_mentions_gap", "web_mentions_gap", "low", "The web names #{leader[0].name} #{leader[1]["total"]} times, #{name} #{own["total"].to_i}",
         detail: "Pages naming a business are what AI assistants learn it from. Local press, directories, partners and sponsorships add them.",
         channel: "brand", evidence: {"own" => own["total"].to_i, "competitor" => leader[0].name, "competitor_total" => leader[1]["total"].to_i, "where" => Array(leader[1]["top_domains"]).first(6)})
+    end
+
+    # Reviews (DataForSEO's queue): unanswered, coming slower than a competitor's, and what customers complain about.
+    def review_findings
+      own = own_latest("reviews")&.data or return []
+      list = Array(own["reviews"])
+      found = []
+      waiting = list.reject { it["answered"] }
+      google = defined?(::Google) && ::Google.respond_to?(:ready?) && ::Google.ready?(:business_profile)
+      if !google && list.size >= 5 && waiting.size > list.size / 2
+        found << finding("reviews_unanswered", "reviews_unanswered", waiting.any? { it["stars"].to_i <= 3 } ? "high" : "medium",
+          "#{waiting.size} of the latest #{list.size} reviews haven't been answered",
+          detail: "Answer every review, the critical ones first: the next customer reads the answers, and Google counts them.", channel: "reviews",
+          evidence: {"waiting" => waiting.first(8).map { it.slice("stars", "reviewer", "text", "at", "source") }})
+      end
+      recent = ->(data) { Array(data["reviews"]).count { it["at"].present? && Time.zone.parse(it["at"]) > 90.days.ago } }
+      mine = recent.call(own)
+      leader = competitors.filter_map { |competitor| latest("reviews", competitor)&.data&.then { [competitor, recent.call(it)] } }.max_by(&:last)
+      if leader && leader[1] >= 5 && leader[1] > mine * 2
+        found << finding("review_pace", "review_pace", "medium", "#{leader[0].name} got #{leader[1]} Google reviews in 90 days, #{name} #{mine}",
+          detail: "Reviews coming in steadily are what Maps and AI answers reward. Ask every happy customer, with a direct link to leave one.", channel: "reviews",
+          evidence: {"competitor" => leader[0].name, "competitor_90_days" => leader[1], "own_90_days" => mine})
+      end
+      complaints = Array(own.dig("themes", "complaints"))
+      if complaints.any?
+        found << finding("review_complaints", "review_complaints", "medium", "Customers' reviews complain about #{complaints.first(2).to_sentence}",
+          detail: own["advice"].presence || "Fix what's behind them, say so in the answers, and ask the customers it's fixed for to review again.", channel: "reviews",
+          evidence: {"complaints" => complaints, "praise" => Array(own.dig("themes", "praise"))})
+      end
+      found
+    end
+
+    # Links: the site's linking sites falling over the year, and the sites linking to competitors but not to it.
+    def link_findings
+      found = []
+      months = Array(own_latest("backlink_history")&.data&.dig("months"))
+      if months.size >= 6
+        before = months.first["referring_domains"].to_i
+        now = months.last["referring_domains"].to_i
+        if before >= 20 && now < before * 0.9
+          found << finding("links_falling", "links_falling", "medium", "Sites linking to #{name} fell from #{before} to #{now} in a year",
+            detail: "Lost links lose rankings. Find the ones lost (moved pages, closed directories) and win them back.", channel: "seo",
+            evidence: {"a_year_ago" => before, "now" => now, "lost_last_3_months" => months.last(3).sum { it["lost_referring_domains"].to_i }})
+        end
+      end
+      gap = own_latest("link_gap")&.data
+      if gap && Array(gap["sites"]).any?
+        found << finding("link_gap", "link_gap", "medium", "#{gap["total"]} sites link to competitors but not to #{name}",
+          detail: "The sites already linking to the competitors (directories, associations, suppliers, local press) are the likeliest to link to the business too.",
+          channel: "seo", evidence: {"sites" => gap["sites"].first(12).map { it.slice("domain", "links_to", "rank") }})
+      end
+      found
     end
 
     # The questions people also ask for the tracked searches the site ranks with a page for.

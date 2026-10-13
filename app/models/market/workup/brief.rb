@@ -37,7 +37,7 @@ class Market::Workup::Brief
   end
 
   def to_s
-    [business, facts, ai_search, google, pages, *focus_pages.map { page_text(it) }].compact_blank.join("\n\n")
+    [business, facts, ai_search, market_extras, google, pages, *focus_pages.map { page_text(it) }].compact_blank.join("\n\n")
   end
 
   # A page's text fields, {id => text}; nil for a path that isn't a page.
@@ -145,6 +145,35 @@ class Market::Workup::Brief
     paths << record.evidence["page_path"] if kind == "finding" && record.evidence["page_path"]
     paths << "home"
     ::Page.where(path: paths.uniq).to_a.sort_by { paths.index(it.path) }.first(2)
+  end
+
+  # What DataForSEO's extras say: what the search is worth here, what customers say in reviews (the site's and
+  # competitors'), and the sites linking to competitors but not the site.
+  def market_extras
+    snapshots = Market::SearchSnapshot.latest_by_site(Market::Competitor.pluck(:id), kinds: %w[keyword_facts reviews link_gap])
+    lines = []
+    if kind.in?(%w[keyword map])
+      facts = snapshots.dig(nil, "keyword_facts", 0)&.data
+      fact = facts&.dig("keywords", record.keyword)
+      if fact.present?
+        lines << "What the search is worth: #{fact["local_volume"] ? "#{fact["local_volume"]} searches a month in #{facts["area"]}, " : ""}#{fact["volume"]} in the country, #{fact["ai_volume"] || 0} in AI assistants; " \
+          "#{fact["intent"]} intent, difficulty #{fact["difficulty"]}, #{fact["local_cpc"] || fact["cpc"]} a click."
+      end
+    end
+    own = snapshots.dig(nil, "reviews", 0)&.data
+    if own
+      lines << "The business's Google reviews: #{own["rating"]}★ from #{own["count"]}; customers praise #{Array(own.dig("themes", "praise")).join(", ").presence || "—"}; " \
+        "complain about #{Array(own.dig("themes", "complaints")).join(", ").presence || "nothing in particular"}."
+      lines << "Review advice: #{own["advice"]}" if own["advice"].present?
+    end
+    names = Market::Competitor.pluck(:id, :name).to_h
+    snapshots.except(nil).each do |id, kinds|
+      theirs = kinds.dig("reviews", 0)&.data or next
+      lines << "#{names[id]}'s reviews: #{theirs["rating"]}★ from #{theirs["count"]}; praised for #{Array(theirs.dig("themes", "praise")).join(", ").presence || "—"}."
+    end
+    gap = snapshots.dig(nil, "link_gap", 0)&.data
+    lines << "Sites linking to competitors but not the business: #{Array(gap["sites"]).first(10).map { it["domain"] }.join(", ")}" if gap && Array(gap["sites"]).any?
+    lines.join("\n").presence
   end
 
   # How the AIs answer: for a search, each one's answer (named the business or not, who instead,

@@ -1,0 +1,56 @@
+<%# locals: (data:) %>
+<%# Google reviews, the site's and each competitor's latest (from DataForSEO's queue): the rating, how many came lately, how many the owner answered, and what customers praise and complain about, read by the AI; the site's unanswered ones to answer. %>
+<% sites = data.sites.select(&:reviews) %>
+<% if sites.any? || data.reviews_waiting? %>
+  <section class="panel panel--padded stack stack--sm" id="reviews">
+    <div class="row row--between">
+      <h2 class="heading">Reviews <%= market_source :reviews %></h2>
+      <span class="text-small text-muted">The latest <%= Market::Search::Api::REVIEWS %> of each, newest first</span>
+    </div>
+    <% if data.reviews_waiting? %>
+      <p class="market-notice text-small" data-controller="refresh" data-refresh-interval-value="30"><%= icon_tag "refresh" %> Reviews are on their way from DataForSEO's queue: a few minutes.</p>
+    <% end %>
+    <% if sites.any? %>
+      <div class="panel--scroll">
+        <table class="data-table market-compare">
+          <thead><tr><th>Business</th><th class="data-table__num">Rating</th><th class="data-table__num">Reviews</th><th class="data-table__num">Last 90 days</th><th class="data-table__num">Answered</th><th>Praised for</th><th>Complaints</th></tr></thead>
+          <tbody>
+            <% sites.each do |site| %>
+              <%# herb:key site.domain %>
+              <% reviews = site.reviews.data %>
+              <% list = Array(reviews["reviews"]) %>
+              <% recent = list.count { it["at"].present? && Time.zone.parse(it["at"]) > 90.days.ago } %>
+              <tr class="<%= class_names("market-compare__own": site.own?) %>">
+                <td><strong><%= site.name %></strong></td>
+                <td class="data-table__num"><%= reviews["rating"] ? "#{reviews["rating"]}★" : "—" %></td>
+                <td class="data-table__num"><%= number_with_delimiter reviews["count"].to_i %></td>
+                <td class="data-table__num"><%= (list.size >= Market::Search::Api::REVIEWS && recent == list.size) ? "#{recent}+" : recent %></td>
+                <td class="data-table__num"><%= list.any? ? "#{(list.count { it["answered"] } * 100.0 / list.size).round}%" : "—" %></td>
+                <td class="text-small"><%= Array(reviews.dig("themes", "praise")).join(", ").presence || "—" %></td>
+                <td class="text-small"><%= Array(reviews.dig("themes", "complaints")).join(", ").presence || "—" %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+      <% own = sites.find(&:own?)&.reviews&.data %>
+      <% if own&.dig("advice").present? %><p class="market-summary"><%= icon_tag "ai" %> <%= own["advice"] %></p><% end %>
+      <% waiting = Array(own&.dig("reviews")).reject { it["answered"] }.first(5) %>
+      <% if waiting.any? %>
+        <div class="stack stack--xs">
+          <h3 class="label">Not answered yet</h3>
+          <ul class="divided">
+            <% waiting.each_with_index do |review, index| %>
+              <%# herb:key index %>
+              <li class="market-row stack stack--xs">
+                <span class="text-small"><strong><%= "★" * review["stars"].to_i %></strong> <%= review["reviewer"] %> <span class="text-muted">· <%= review["source"] %><%= " · #{l Time.zone.parse(review["at"]).to_date, format: :long}" if review["at"].present? %></span></span>
+                <% if review["text"].present? %><span class="text-small market-text"><%= review["text"] %></span><% end %>
+                <% if review["url"].present? %><span><%= link_to "Answer it", review["url"], class: "link text-small", target: "_blank", rel: "noopener" %></span><% end %>
+              </li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+    <% end %>
+  </section>
+<% end %>

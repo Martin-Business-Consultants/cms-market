@@ -54,6 +54,15 @@ The big picture behind the site's SEO and marketing, beside the site it's about.
   (rating, reviews, photos, claimed, hours, description, categories), the home page's health (rendered as
   Google does, and Lighthouse on a phone), and web mentions with their tone. The questions people also ask
   and the map pack come with each Google check. **Test mode** pulls from DataForSEO's free sandbox.
+- **Google reviews** (Also pull): the latest 50 of the site (with the other sites' reviews Google shows) and
+  of each competitor, from DataForSEO's queue; they arrive a few minutes after the pull. The AI reads them
+  for what customers praise and complain about, with advice for the business; Search shows the rating,
+  pace, share answered, and the unanswered ones to answer; findings flag unanswered reviews, a competitor
+  getting reviews faster, and recurring complaints.
+- **Searches a month in the business's city** (keyword facts): Google Ads' volume and cost per click for
+  each tracked search where the business is, its city found once in Google Ads' locations from the profile.
+- **Links** (Backlinks too): each site's linking sites month by month for a year (new and lost), charted on
+  the report, and the sites linking to competitors but not to the site: the places to get a link.
 - **Local search** works from a ZIP (or postcode) and a radius in miles (Market › Profile), not the whole
   country. On every pull, each tracked search is checked on Google Maps from a grid of points across the
   area (3×3, 5×5 or 7×7). **Maps** lists the searches beside the open one: its grid with the business's
