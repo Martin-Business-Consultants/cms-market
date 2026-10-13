@@ -65,7 +65,7 @@ The big picture behind the site's SEO and marketing, beside the site it's about.
   the report, and the sites linking to competitors but not to the site: the places to get a link.
 - **Local search** works from a ZIP (or postcode) and a radius in miles (Market › Profile), not the whole
   country. On every pull, each tracked search is checked on Google Maps from a grid of points across the
-  area (3×3, 5×5 or 7×7). **Maps** lists the searches beside the open one: its grid with the business's
+  area (3×3, 5×5 or 7×7). **Maps** lists the searches beside the open one: its grid laid on a map of the area (OpenStreetMap), with the business's
   map position at every point (green for the top 3, amber for 4 to 10, red for further or not found; choose
   a point for who's shown there), the average position, the share of points in the top 3, who leads the
   area with their rating and reviews (watch them in one click), next steps (close the review gap, win the

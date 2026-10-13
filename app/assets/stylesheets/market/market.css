@@ -151,22 +151,10 @@
     padding: var(--space-2) var(--space-3);
   }
 
-  /* Local search: a grid per search, each point's map position, north at the top. */
+  /* Local search: each point's map position as a square, coloured by rank. */
 
-  .market-grid {
-    display: grid;
-    gap: 3px;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    max-inline-size: 16rem;
-  }
 
-  .market-grid--3 {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
 
-  .market-grid--7 {
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-  }
 
   .market-grid__cell {
     align-items: center;
@@ -301,29 +289,90 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* Maps: the grid, larger, with the chosen point's results beside it. */
+  /* Maps: the area's map with the grid on it, the chosen point's results under it. */
   .market-map {
-    align-items: start;
-    display: grid;
-    gap: var(--space-4);
-    grid-template-columns: minmax(0, 1fr);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
 
-    @media (width >= 48rem) {
-      grid-template-columns: minmax(0, 20rem) minmax(0, 1fr);
+  /* A square map of tiles placed by percent (Market::SlippyMap); what's on it centred on its spot. */
+  .market-tiles {
+    aspect-ratio: 1;
+    background-color: var(--gray-100);
+    border-radius: var(--radius-lg);
+    max-inline-size: 36rem;
+    overflow: hidden;
+    position: relative;
+    inline-size: 100%;
+  }
+
+  .market-tiles__tile {
+    block-size: var(--s);
+    inline-size: var(--s);
+    inset-block-start: var(--y);
+    inset-inline-start: var(--x);
+    max-inline-size: none;
+    position: absolute;
+    user-select: none;
+  }
+
+  .market-tiles__radius {
+    aspect-ratio: 1;
+    border: 2px dashed color-mix(in oklch, var(--accent-600) 70%, transparent);
+    border-radius: 50%;
+    inline-size: var(--s);
+    inset-block-start: var(--y);
+    inset-inline-start: var(--x);
+    pointer-events: none;
+    position: absolute;
+    translate: -50% -50%;
+  }
+
+  .market-grid__cell.market-tiles__cell {
+    aspect-ratio: 1;
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+    inline-size: var(--s);
+    inset-block-start: var(--y);
+    inset-inline-start: var(--x);
+    border-radius: var(--radius-sm);
+    max-inline-size: 2.6rem;
+    min-inline-size: 1.5rem;
+    opacity: 0.9;
+    position: absolute;
+    text-decoration: none;
+    translate: -50% -50%;
+
+    &:hover,
+    &.market-grid__cell--current {
+      opacity: 1;
+      z-index: 1;
     }
   }
 
-  .market-grid--large {
-    max-inline-size: 20rem;
+  .market-tiles__pin {
+    background-color: var(--gray-900);
+    block-size: 0.7rem;
+    border: 2px solid white;
+    border-radius: 50%;
+    inline-size: 0.7rem;
+    inset-block-start: var(--y);
+    inset-inline-start: var(--x);
+    pointer-events: none;
+    position: absolute;
+    translate: -50% -50%;
+    z-index: 2;
+  }
 
-    > .market-grid__cell {
-      font-size: var(--text-sm);
-      text-decoration: none;
-
-      &:hover {
-        outline: 2px solid var(--gray-400);
-      }
-    }
+  .market-tiles__credit {
+    background-color: rgb(255 255 255 / 0.8);
+    color: var(--gray-700);
+    font-size: 0.65rem;
+    inset-block-end: 0;
+    inset-inline-end: 0;
+    padding: 1px 4px;
+    position: absolute;
+    text-decoration: none;
   }
 
   .market-grid__cell--current {
