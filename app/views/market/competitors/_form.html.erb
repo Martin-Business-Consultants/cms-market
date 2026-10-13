@@ -1,0 +1,35 @@
+<%# locals: (competitor:) %>
+<%= form_with model: competitor, url: competitor.new_record? ? market_competitors_path : market_competitor_path(competitor), scope: :competitor, class: "stack stack--lg" do |form| %>
+  <% if competitor.errors.any? %>
+    <div class="notice notice--danger" role="alert"><%= competitor.errors.full_messages.to_sentence %></div>
+  <% end %>
+  <section class="panel panel--padded fields">
+    <div class="grid grid--2 fields-grid">
+      <%= settings_field "Name" do %>
+        <%= form.text_field :name, required: true, autofocus: competitor.new_record? %>
+      <% end %>
+      <%= settings_field "Website", hint: "Read from outside every week." do %>
+        <%= form.url_field :website, placeholder: "https://their-site.com" %>
+      <% end %>
+      <%= settings_field "How it competes" do %>
+        <%= form.select :kind, Market::Competitor::KINDS.invert %>
+      <% end %>
+      <%= settings_field "Threat" do %>
+        <%= form.select :threat, Market::Competitor::THREATS.map { [it.capitalize, it] } %>
+      <% end %>
+    </div>
+    <%= settings_field "What they do well" do %>
+      <%= form.text_area :strengths, rows: 2, placeholder: "Reviews everywhere, same-day service, a page for every town" %>
+    <% end %>
+    <%= settings_field "Where they're weak" do %>
+      <%= form.text_area :weaknesses, rows: 2, placeholder: "Slow site, no prices, nothing posted in a year" %>
+    <% end %>
+    <%= settings_field "Notes" do %>
+      <%= form.text_area :notes, rows: 2 %>
+    <% end %>
+  </section>
+  <div class="cluster">
+    <button type="submit" class="btn btn--primary"><%= competitor.new_record? ? "Add competitor" : "Save" %></button>
+    <%= link_to "Cancel", competitor.new_record? ? market_competitors_path : market_competitor_path(competitor), class: "btn" %>
+  </div>
+<% end %>

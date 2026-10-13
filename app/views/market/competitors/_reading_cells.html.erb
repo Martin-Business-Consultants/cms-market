@@ -1,0 +1,16 @@
+<%# locals: (reading:) %>
+<%# A website's latest reading as comparison cells: pages, posts (and in 90 days), locations, services, updated, the tools by column, socials. %>
+<% if reading&.read? %>
+  <td class="data-table__num"><%= market_figure reading, :pages %></td>
+  <td class="data-table__num"><%= market_figure reading, :posts %> <span class="text-small text-muted">(<%= reading.figure(:posts_last_90_days) || 0 %>)</span></td>
+  <td class="data-table__num"><%= market_figure reading, :locations %></td>
+  <td class="data-table__num"><%= market_figure reading, :services %></td>
+  <td class="nowrap"><%= market_figure reading, :last_changed %></td>
+  <% Market::MarketHelper::MARKET_COLUMNS.each_value.with_index do |keys, index| %>
+    <%# herb:key index %>
+    <td><%= market_tool_dots reading, keys %></td>
+  <% end %>
+  <td class="data-table__num"><%= reading.socials.size %></td>
+<% else %>
+  <td colspan="<%= 6 + Market::MarketHelper::MARKET_COLUMNS.size %>" class="text-small text-muted"><%= reading ? "Couldn't be read: #{reading.error}" : "Not read yet" %></td>
+<% end %>

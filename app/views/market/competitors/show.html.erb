@@ -1,0 +1,121 @@
+<% @page_title = @competitor.name %>
+<% can_write = Current.user.can?("market:write") %>
+<% reading = @readings.first %>
+
+<% content_for :page_actions do %>
+  <% if can_write %>
+    <% if @competitor.domain %>
+      <%= button_to "Read again", market_competitor_check_path(@competitor), class: "btn", form_class: "contents" %>
+    <% end %>
+    <%= link_to "Edit", edit_market_competitor_path(@competitor), class: "btn" %>
+  <% end %>
+<% end %>
+<%= render "layouts/shared/page_header", title: @competitor.name %>
+
+<div class="stack stack--lg">
+  <section class="panel panel--padded stack stack--sm">
+    <div class="cluster cluster--sm text-small">
+      <% if @competitor.website %><%= link_to @competitor.host, @competitor.website, class: "link", target: "_blank", rel: "noopener" %><% end %>
+      <span class="text-muted"><%= @competitor.kind_label %></span>
+      <%= market_threat_tag @competitor %>
+      <span class="text-muted"><%= reading ? "Read #{time_ago_in_words(reading.taken_at)} ago" : "Not read yet" %></span>
+    </div>
+    <dl class="market-facts text-small">
+      <% [["What they do well", @competitor.strengths], ["Where they're weak", @competitor.weaknesses], ["Notes", @competitor.notes]].each do |label, value| %>
+        <%# herb:key label %>
+        <% next if value.blank? %>
+        <dt><%= label %></dt>
+        <dd class="market-text"><%= value %></dd>
+      <% end %>
+    </dl>
+  </section>
+
+  <% if reading %>
+    <% home = reading.home %>
+    <% sitemap = reading.sitemap %>
+    <% tools = market_tool_labels(reading) %>
+    <div class="grid grid--2">
+      <section class="panel panel--padded stack stack--sm">
+        <h2 class="heading">Their home page</h2>
+        <% if home.any? %>
+          <dl class="market-facts text-small">
+            <% if home["title"] %><dt>Title</dt><dd><%= home["title"] %></dd><% end %>
+            <% if home["description"] %><dt>Description</dt><dd><%= home["description"] %></dd><% end %>
+            <% if Array(home["headings"]).any? %><dt>Main heading</dt><dd><%= home["headings"].first %></dd><% end %>
+            <% if home["platform"] %><dt>Built on</dt><dd><%= home["platform"] %></dd><% end %>
+            <dt>Runs</dt>
+            <% if tools.any? %>
+              <dd><%= tools.to_sentence %></dd>
+            <% else %>
+              <dd class="text-muted">Nothing we recognise</dd>
+            <% end %>
+            <% if home["socials"].present? %>
+              <dt>Socials</dt>
+              <dd class="cluster cluster--sm">
+                <% home["socials"].each do |network, url| %>
+                  <%# herb:key network %>
+                  <%= link_to Market::Probe::SOCIAL_LABELS.fetch(network, network.humanize), url, class: "link", target: "_blank", rel: "noopener" %>
+                <% end %>
+              </dd>
+            <% end %>
+            <% if Array(home["schema_types"]).any? %><dt>Structured data</dt><dd><%= home["schema_types"].join(", ") %></dd><% end %>
+            <% if Array(home["phone_numbers"]).any? %><dt>Phone</dt><dd><%= home["phone_numbers"].join(", ") %></dd><% end %>
+          </dl>
+        <% else %>
+          <p class="text-small text-muted">Couldn't be read: <%= reading.facts.dig("home_page", "error") %></p>
+        <% end %>
+      </section>
+
+      <section class="panel panel--padded stack stack--sm">
+        <h2 class="heading">Their site</h2>
+        <% if sitemap.any? %>
+          <dl class="market-facts text-small">
+            <dt>Pages</dt><dd><%= market_figure reading, :pages %></dd>
+            <dt>Posts</dt><dd><%= market_figure reading, :posts %> <span class="text-muted">(<%= sitemap["posts_last_90_days"] %> in the last 90 days)</span></dd>
+            <dt>Location pages</dt><dd><%= market_figure reading, :locations %></dd>
+            <dt>Service pages</dt><dd><%= market_figure reading, :services %></dd>
+            <% if sitemap["last_changed"] %><dt>Last changed</dt><dd><%= l Date.parse(sitemap["last_changed"]), format: :long %></dd><% end %>
+          </dl>
+          <% if reading.partial_sitemap? %>
+            <p class="text-small text-muted">Counted from the first <%= sitemap["sitemaps_read"] %> of its <%= sitemap["sitemaps"] %> sitemaps, so these are at least what it has.</p>
+          <% end %>
+        <% else %>
+          <p class="text-small text-muted">No sitemap found: <%= reading.facts.dig("sitemap", "error") %></p>
+        <% end %>
+      </section>
+    </div>
+  <% end %>
+
+  <section class="panel panel--padded stack stack--sm">
+    <div class="row row--between">
+      <h2 class="heading">What changed</h2>
+      <span class="text-small text-muted">Read every week</span>
+    </div>
+    <% changed = @readings.select { it.differences.any? } %>
+    <% if changed.any? %>
+      <ul class="divided">
+        <% changed.each do |snapshot| %>
+          <%# herb:key snapshot.id %>
+          <li class="stack stack--xs market-row">
+            <strong class="text-small"><%= l snapshot.taken_at.to_date, format: :long %></strong>
+            <ul class="market-changes text-small">
+              <% snapshot.differences.each_with_index do |change, index| %>
+                <%# herb:key index %>
+                <li><%= change %></li>
+              <% end %>
+            </ul>
+          </li>
+        <% end %>
+      </ul>
+    <% else %>
+      <p class="text-small text-muted"><%= (@readings.size > 1) ? "Nothing yet, over #{pluralize(@readings.size, "reading")}." : "Changes show here from the second reading on." %></p>
+    <% end %>
+  </section>
+
+  <% if can_write %>
+    <div>
+      <%= button_to "Remove #{@competitor.name}", market_competitor_path(@competitor), method: :delete, class: "btn btn--danger", form_class: "contents",
+            data: {turbo_confirm: "Stop watching #{@competitor.name} and forget its readings?"} %>
+    </div>
+  <% end %>
+</div>

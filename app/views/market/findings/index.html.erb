@@ -1,0 +1,27 @@
+<% @page_title = "Findings" %>
+<% can_write = Current.user.can?("market:write") %>
+
+<% content_for :page_actions do %>
+  <% if can_write %>
+    <%= button_to "Work them out again", refresh_market_findings_path, class: "btn", form_class: "contents" %>
+  <% end %>
+<% end %>
+<%= render "layouts/shared/page_header", title: "Findings" %>
+
+<%= render "layouts/shared/status_links", param: :state, current: @state,
+      options: [["Open", "open", @counts["open"]], ["Dismissed", "dismissed", @counts["dismissed"]], ["Resolved", "resolved", @counts["resolved"]],
+                ["All", "all", @counts.values.sum]] %>
+
+<section class="panel panel--padded stack stack--sm">
+  <p class="text-small text-muted">Worked out from the website readings, the search data and the tracked searches, after each one and every night, each with the exact figures behind it. For a harness: <code>cms get "/api/market/findings?since=<%= Time.current.utc.iso8601(6) %>"</code> answers only what changes after now.</p>
+  <% if @findings.any? %>
+    <ul class="divided">
+      <% @findings.each do |finding| %>
+        <%# herb:key finding.id %>
+        <%= render "market/findings/finding", finding: finding, can_write: can_write %>
+      <% end %>
+    </ul>
+  <% else %>
+    <p class="text-small text-muted">Nothing here.</p>
+  <% end %>
+</section>

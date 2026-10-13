@@ -1,0 +1,42 @@
+<%# locals: (finding:, can_write:) %>
+<%# One finding: how much it matters, what it says and the figures behind it; Dismiss or Open again; on a keyword gap, Track these. %>
+<% settled = finding.state != "open" %>
+<li class="market-finding" id="finding_<%= finding.id %>">
+  <div class="row row--between market-finding__head">
+    <div class="stack stack--xs grow">
+      <strong class="<%= class_names("text-muted": settled) %>"><%= finding.title %></strong>
+      <span class="text-small text-muted"><%= [finding.channel_label, "since #{l finding.first_seen_at.to_date, format: :short}"].compact.join(" · ") %></span>
+    </div>
+    <div class="cluster cluster--sm">
+      <%= market_severity_tag finding %>
+      <% unless finding.state == "open" %><%= status_tag finding.state %><% end %>
+    </div>
+  </div>
+  <% if finding.detail.present? %>
+    <p class="text-small market-text"><%= finding.detail %></p>
+  <% end %>
+  <% gap = (finding.kind == "keyword_gap") ? Array(finding.evidence["keywords"]) : [] %>
+  <% if gap.any? %>
+    <ul class="market-chips text-small">
+      <% gap.first(8).each_with_index do |row, index| %>
+        <%# herb:key index %>
+        <li><%= row["keyword"] %> <span class="text-muted"><%= row["volume"] %>/mo · their #<%= row["their_position"] %></span></li>
+      <% end %>
+    </ul>
+  <% end %>
+  <% if can_write %>
+    <div class="cluster cluster--sm">
+      <% if gap.any? %>
+        <%= button_to market_keywords_path, params: {keyword: {keywords: gap.first(10).map { it["keyword"] }.join("\n"), source: "gap"}}, class: "btn btn--sm", form_class: "contents" do %>
+          <%= icon_tag "add" %> <span>Track these</span>
+        <% end %>
+      <% end %>
+      <% if finding.state == "open" %>
+        <%= button_to "Dismiss", market_finding_path(finding), method: :patch, params: {finding: {state: "dismissed"}}, class: "btn btn--sm btn--plain", form_class: "contents" %>
+      <% elsif finding.state == "dismissed" %>
+        <span class="text-small text-muted">Dismissed by <%= finding.dismissed_by_name %></span>
+        <%= button_to "Open again", market_finding_path(finding), method: :patch, params: {finding: {state: "open"}}, class: "btn btn--sm btn--plain", form_class: "contents" %>
+      <% end %>
+    </div>
+  <% end %>
+</li>

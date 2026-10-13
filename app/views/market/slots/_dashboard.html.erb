@@ -1,0 +1,24 @@
+<%# locals: () %>
+<%# The dashboard's Market panel: what the data says that matters most. %>
+<% if Current.user&.can?("market:read") %>
+  <% findings = Market::Finding.open.where(severity: %w[high medium]).by_severity.limit(4).to_a %>
+  <section class="panel panel--padded stack stack--sm">
+    <div class="row row--between">
+      <h2 class="heading">Market</h2>
+      <%= link_to "Findings", market_findings_path, class: "link text-small" %>
+    </div>
+    <% if findings.any? %>
+      <ul class="divided">
+        <% findings.each do |finding| %>
+          <%# herb:key finding.id %>
+          <li class="row row--between market-row">
+            <span class="grow truncate"><%= finding.title %></span>
+            <%= market_severity_tag finding %>
+          </li>
+        <% end %>
+      </ul>
+    <% else %>
+      <p class="text-small text-muted">Nothing that needs you. <%= link_to "The market", market_overview_path, class: "link" %>.</p>
+    <% end %>
+  </section>
+<% end %>

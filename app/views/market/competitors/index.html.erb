@@ -1,0 +1,56 @@
+<% @page_title = "Competitors" %>
+<% can_write = Current.user.can?("market:write") %>
+
+<% content_for :page_actions do %>
+  <% if can_write %>
+    <%= link_to "Add New", new_market_competitor_path, class: "btn" %>
+    <% if @profile.domain %>
+      <%= button_to "Read the site", market_site_check_path, class: "btn", form_class: "contents" %>
+    <% end %>
+  <% end %>
+<% end %>
+<%= render "layouts/shared/page_header", title: "Competitors" %>
+
+<section class="panel panel--scroll">
+  <table class="data-table market-compare">
+    <thead>
+      <tr>
+        <th>Business</th>
+        <th class="data-table__num">Pages</th>
+        <th class="data-table__num">Posts <span class="text-muted">(90 days)</span></th>
+        <th class="data-table__num">Locations</th>
+        <th class="data-table__num">Services</th>
+        <th>Updated</th>
+        <% Market::MarketHelper::MARKET_COLUMNS.each_key do |column| %>
+          <%# herb:key column %>
+          <th><%= column %></th>
+        <% end %>
+        <th class="data-table__num">Socials</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="market-compare__own">
+        <td>
+          <strong><%= @profile.business_name %></strong>
+          <div class="text-small text-muted"><%= @profile.domain ? (@own ? "This site · read #{time_ago_in_words(@own.taken_at)} ago" : "This site · not read yet") : "Set the site's address in Settings › General" %></div>
+        </td>
+        <%= render "market/competitors/reading_cells", reading: @own %>
+      </tr>
+      <% @competitors.each do |competitor| %>
+        <%# herb:key competitor.id %>
+        <tr>
+          <td>
+            <%= link_to competitor.name, market_competitor_path(competitor), class: "title-link" %>
+            <div class="cluster cluster--sm text-small">
+              <span class="text-muted"><%= competitor.kind_label %></span>
+              <%= market_threat_tag competitor %>
+            </div>
+          </td>
+          <%= render "market/competitors/reading_cells", reading: @readings[competitor.id] %>
+        </tr>
+      <% end %>
+      <%= table_empty_row("No competitors yet. Add the businesses this one loses customers to, and the one it would most like to be.", columns: 7 + Market::MarketHelper::MARKET_COLUMNS.size) if @competitors.none? %>
+    </tbody>
+  </table>
+</section>
+<p class="text-small text-muted">Every website is read from outside, as a visitor would, every week: its sitemap (pages, posts, location and service pages, when it last changed) and its home page (the ad, analytics, call tracking, chat, reviews and booking tools it runs, its socials and structured data). A dot is a tool found; hover to name it.</p>

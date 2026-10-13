@@ -1,0 +1,120 @@
+<% @page_title = "Market" %>
+<% can_write = Current.user.can?("settings:write") %>
+
+<%= render "layouts/shared/page_header", title: "Market" %>
+<% content_for :settings_aside do %>
+  <%= render "settings/save_box", form: "market_settings_form", capability: "settings:write" %>
+<% end %>
+
+<%= form_with url: settings_market_path, id: "market_settings_form", method: :patch, scope: :market do |form| %>
+  <%= tag.fieldset class: "stack stack--lg", disabled: !can_write do %>
+    <section class="panel panel--padded fields">
+      <div class="stack stack--xs">
+        <h2 class="heading">DataForSEO</h2>
+        <p class="text-muted">Search data (visibility, estimated traffic, the keywords each site ranks for, who shares the site's keywords, and who ranks where for the searches tracked) comes from your own <%= link_to "DataForSEO", "https://dataforseo.com", class: "link", target: "_blank", rel: "noopener" %> account: its API login and password (Dashboard › API Access), not your sign-in to their site.</p>
+      </div>
+      <p class="text-small">
+        <% if @settings.search_connected? %>
+          <%= status_tag "active" %>
+          <%= @settings.balance ? "#{market_money @settings.balance} on the account, #{time_ago_in_words(@settings.checked_at)} ago." : "Saved; check it to see the balance." %>
+        <% else %>
+          <%= status_tag "off" %> Not connected: add the API login and password.
+        <% end %>
+      </p>
+      <% if @settings.last_error %>
+        <p class="text-small text-danger" role="alert"><%= @settings.last_error %></p>
+      <% end %>
+      <div class="grid grid--2 fields-grid">
+        <%= settings_field "API login" do %>
+          <%= form.text_field :dataforseo_login, value: @settings.dataforseo_login, autocomplete: "off", spellcheck: false %>
+        <% end %>
+        <%= settings_field "API password", hint: (@settings.dataforseo_password ? "Saved. Leave blank to keep it." : nil) do %>
+          <%= form.password_field :dataforseo_password, value: nil, autocomplete: "new-password", data: {"1p-ignore": true} %>
+        <% end %>
+      </div>
+      <% if @settings.dataforseo_password %>
+        <label class="choice text-small"><%= form.check_box :remove_dataforseo_password %><span>Remove the saved password</span></label>
+      <% end %>
+    </section>
+
+    <section class="panel panel--padded fields">
+      <div class="stack stack--xs">
+        <h2 class="heading">Spending</h2>
+        <p class="text-muted">Every request is checked against what's left first, and refused if it could go over: a pull stops where it is, keeping what it got.</p>
+      </div>
+      <div class="grid grid--2 fields-grid">
+        <%= settings_field "Monthly budget (US dollars)" do %>
+          <%= form.number_field :monthly_budget_dollars, value: format("%.2f", @settings.budget), min: 0, step: "0.01" %>
+        <% end %>
+        <%= settings_field "This month" do %>
+          <p class="text-small"><%= market_money @settings.spent_this_month %> spent, <%= market_money @settings.remaining_budget %> left</p>
+        <% end %>
+      </div>
+    </section>
+
+    <section class="panel panel--padded fields">
+      <div class="stack stack--xs">
+        <h2 class="heading">Searches</h2>
+        <p class="text-muted">Visibility and keywords are country-wide. Tracked searches are checked from the market profile's search location, or this country.</p>
+      </div>
+      <div class="grid grid--3 fields-grid">
+        <%= settings_field "Country", hint: "A DataForSEO location name." do %>
+          <%= form.text_field :country, value: @settings.country %>
+        <% end %>
+        <%= settings_field "Language" do %>
+          <%= form.text_field :language_code, value: @settings.language_code %>
+        <% end %>
+        <%= settings_field "Keywords per site", hint: "10 to 1,000 a pull." do %>
+          <%= form.number_field :keyword_limit, value: @settings.keyword_limit, min: 10, max: 1000 %>
+        <% end %>
+      </div>
+      <%= settings_field "Pull search data on its own" do %>
+        <%= form.select :refresh, Market::Settings::REFRESH.invert, selected: @settings.refresh %>
+      <% end %>
+      <%= settings_switch form, :backlinks, "Backlinks too", hint: "Needs DataForSEO's Backlinks subscription.", checked: @settings.backlinks? %>
+    </section>
+
+    <section class="panel panel--padded fields">
+      <div class="stack stack--xs">
+        <h2 class="heading">Plans by Claude</h2>
+        <p class="text-muted">Plans are drafted by Claude from everything known: the profile, the site and its content, the competitors, the search data and the findings. Nothing on the site changes until someone acts on one.</p>
+      </div>
+      <div class="grid grid--2 fields-grid">
+        <%= settings_field "Anthropic API key", hint: (@settings.ai? ? "Saved. Leave blank to keep it." : "From console.anthropic.com.") do %>
+          <%= form.password_field :anthropic_api_key, value: nil, autocomplete: "new-password", data: {"1p-ignore": true} %>
+        <% end %>
+        <%= settings_field "Model" do %>
+          <%= form.text_field :ai_model, value: @settings.ai_model %>
+        <% end %>
+      </div>
+      <% if @settings.ai? %>
+        <label class="choice text-small"><%= form.check_box :remove_ai_key %><span>Remove the saved key</span></label>
+      <% end %>
+    </section>
+  <% end %>
+<% end %>
+
+<% if @settings.search_connected? && can_write %>
+  <div class="cluster">
+    <%= button_to "Check the connection", settings_market_check_path, class: "btn", form_class: "contents" %>
+  </div>
+<% end %>
+
+<section class="panel panel--scroll">
+  <table class="data-table">
+    <thead><tr><th>When</th><th>What</th><th>For</th><th class="data-table__num">Cost</th><th>Result</th></tr></thead>
+    <tbody>
+      <% @requests.each do |request| %>
+        <%# herb:key request.id %>
+        <tr>
+          <td class="nowrap"><%= time_ago_tag request.created_at %></td>
+          <td class="text-small"><%= request.endpoint.split("/").reject { it.in?(%w[live google regular]) }.last(2).join(" ").humanize %></td>
+          <td class="text-small truncate"><%= request.target %></td>
+          <td class="data-table__num">$<%= format("%.4f", request.cost) %></td>
+          <td class="<%= class_names("text-small", "text-danger": !request.ok?) %>"><%= request.ok? ? "OK" : (request.error.presence || request.status_message) %><%= " (#{request.attempts} tries)" if request.attempts > 1 %></td>
+        </tr>
+      <% end %>
+      <%= table_empty_row("No requests to DataForSEO yet.", columns: 5) if @requests.none? %>
+    </tbody>
+  </table>
+</section>

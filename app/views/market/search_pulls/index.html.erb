@@ -1,0 +1,31 @@
+<% @page_title = "Search pulls" %>
+
+<% content_for :page_actions do %>
+  <%= link_to "Search", market_search_path, class: "btn" %>
+<% end %>
+<%= render "layouts/shared/page_header", title: "Search pulls" %>
+
+<section class="panel panel--scroll">
+  <table class="data-table">
+    <thead><tr><th>When</th><th>By</th><th>State</th><th class="data-table__num">Cost</th><th>Notes</th></tr></thead>
+    <tbody>
+      <% @pulls.each do |pull| %>
+        <%# herb:key pull.id %>
+        <tr>
+          <td class="nowrap"><%= time_ago_tag pull.created_at %></td>
+          <td class="text-small"><%= pull.user ? (pull.user.name.presence || pull.user.email) : "On its own" %></td>
+          <td><%= status_tag(pull.working? ? "running" : pull.state) %></td>
+          <td class="data-table__num"><%= market_money pull.cost %></td>
+          <td class="text-small">
+            <% if pull.error.present? %><div class="text-danger"><%= pull.error %></div><% end %>
+            <% Array(pull.notes).each_with_index do |note, index| %>
+              <%# herb:key index %>
+              <div class="text-muted"><%= note %></div>
+            <% end %>
+          </td>
+        </tr>
+      <% end %>
+      <%= table_empty_row("No pulls yet.", columns: 5) if @pulls.none? %>
+    </tbody>
+  </table>
+</section>

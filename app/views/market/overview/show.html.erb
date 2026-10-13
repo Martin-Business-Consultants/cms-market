@@ -1,0 +1,102 @@
+<% @page_title = "Market" %>
+<% can_write = Current.user.can?("market:write") %>
+<% urgent = @findings.any? { it.severity == "high" } %>
+
+<% content_for :page_actions do %>
+  <% if can_write %>
+    <%= link_to "Profile", edit_market_profile_path, class: "btn" %>
+  <% end %>
+  <%= link_to "Plan", market_plan_path, class: "btn" %>
+<% end %>
+<%= render "layouts/shared/page_header", title: "Market" %>
+
+<div class="stack stack--lg">
+  <section class="panel panel--padded stack stack--sm">
+    <div class="row row--between">
+      <h2 class="heading"><%= @profile.business_name %></h2>
+      <% if @profile.website %><%= link_to @profile.domain, @profile.website, class: "link text-small", target: "_blank", rel: "noopener" %><% end %>
+    </div>
+    <div class="cluster cluster--base">
+      <span><strong class="text-ink"><%= @competitor_count %></strong> <span class="text-muted"><%= "competitor".pluralize(@competitor_count) %> watched</span></span>
+      <span><strong class="<%= class_names("text-danger": urgent, "text-ink": !urgent) %>"><%= @findings.size %></strong> <span class="text-muted">open <%= "finding".pluralize(@findings.size) %></span></span>
+      <span><strong class="text-ink"><%= Market::Opportunity.open.count %></strong> <span class="text-muted">open opportunities</span></span>
+      <span class="text-muted"><%= @own ? "Site read #{time_ago_in_words(@own.taken_at)} ago" : "The site hasn't been read yet" %></span>
+    </div>
+    <% if @profile.industry || @profile.service_area %>
+      <p class="text-small text-muted"><%= [@profile.industry, @profile.service_area].compact.join(" · ") %></p>
+    <% end %>
+    <% if @profile.gaps.any? %>
+      <p class="market-notice text-small">
+        Plans and findings are only as good as what's known. Missing: <%= @profile.gaps.to_sentence %>.
+        <% if can_write %><%= link_to "Fill in the profile", edit_market_profile_path, class: "link" %><% end %>
+      </p>
+    <% end %>
+  </section>
+
+  <section class="panel panel--padded stack stack--sm">
+    <div class="row row--between">
+      <h2 class="heading">What the data says</h2>
+      <%= link_to "All findings", market_findings_path, class: "link text-small" %>
+    </div>
+    <% if @findings.any? %>
+      <ul class="divided">
+        <% @findings.first(8).each do |finding| %>
+          <%# herb:key finding.id %>
+          <%= render "market/findings/finding", finding: finding, can_write: can_write %>
+        <% end %>
+      </ul>
+    <% else %>
+      <p class="text-small text-muted">Nothing yet. Findings come from the profile, the competitors' websites and the site's own, and search data, worked out after each reading and every night.</p>
+    <% end %>
+  </section>
+
+  <div class="grid grid--2">
+    <section class="panel panel--padded stack stack--sm">
+      <div class="row row--between">
+        <h2 class="heading">Best opportunities</h2>
+        <%= link_to "Plan", market_plan_path(anchor: "opportunities"), class: "link text-small" %>
+      </div>
+      <% if @opportunities.any? %>
+        <ul class="divided">
+          <% @opportunities.each do |opportunity| %>
+            <%# herb:key opportunity.id %>
+            <li class="row row--between market-row">
+              <span class="grow">
+                <strong><%= opportunity.title %></strong>
+                <span class="text-small text-muted"><%= opportunity.channel_label %> · <%= opportunity.horizon_label %></span>
+              </span>
+              <span class="cluster cluster--sm"><%= market_impact_tag opportunity %><%= market_effort_tag opportunity %></span>
+            </li>
+          <% end %>
+        </ul>
+      <% else %>
+        <p class="text-small text-muted">None open. Draft a plan to find them, or add one on the Plan page.</p>
+      <% end %>
+    </section>
+
+    <section class="panel panel--padded stack stack--sm">
+      <div class="row row--between">
+        <h2 class="heading">What competitors changed</h2>
+        <span class="text-small text-muted">Last 30 days</span>
+      </div>
+      <% if @changes.any? %>
+        <ul class="divided">
+          <% @changes.each do |reading| %>
+            <%# herb:key reading.id %>
+            <li class="stack stack--xs market-row">
+              <span><%= link_to reading.competitor.name, market_competitor_path(reading.competitor), class: "title-link" %> <span class="text-small text-muted"><%= l reading.taken_at.to_date, format: :short %></span></span>
+              <ul class="market-changes text-small">
+                <% reading.differences.first(4).each_with_index do |change, index| %>
+                  <%# herb:key index %>
+                  <li><%= change %></li>
+                <% end %>
+              </ul>
+            </li>
+          <% end %>
+        </ul>
+      <% else %>
+        <p class="text-small text-muted">Nothing the weekly readings noticed. <%= link_to "Add competitors", market_competitors_path, class: "link" %> with their websites to watch them.</p>
+      <% end %>
+    </section>
+  </div>
+</div>

@@ -1,0 +1,36 @@
+<%# locals: (opportunity:, can_write:, can_pages:) %>
+<%# One opportunity: what, why and how big; Start a draft page, Done, Dismiss, or Open again. %>
+<li class="stack stack--xs market-row" id="opportunity_<%= opportunity.id %>">
+  <div class="row row--between">
+    <span class="grow">
+      <strong class="<%= class_names("text-muted": !opportunity.active?) %>"><%= opportunity.title %></strong>
+      <span class="text-small text-muted"><%= opportunity.channel_label %> · <%= opportunity.horizon_label %></span>
+    </span>
+    <span class="cluster cluster--sm">
+      <%= market_impact_tag opportunity %>
+      <%= market_effort_tag opportunity %>
+      <% unless opportunity.state == "open" %><%= status_tag opportunity.state %><% end %>
+    </span>
+  </div>
+  <% if opportunity.detail.present? %><p class="text-small market-text"><%= opportunity.detail %></p><% end %>
+  <% if opportunity.evidence.present? %><p class="text-small text-muted market-text">Why: <%= opportunity.evidence %></p><% end %>
+  <div class="cluster cluster--sm">
+    <% if opportunity.page %>
+      <%= link_to edit_page_path(opportunity.page.path), class: "link text-small" do %><%= icon_tag "document" %> <%= opportunity.page.title %> (<%= opportunity.page.status %>)<% end %>
+    <% end %>
+    <% if can_write %>
+      <% if opportunity.active? %>
+        <% if can_pages && opportunity.page.nil? %>
+          <%= button_to market_opportunity_page_path(opportunity), class: "btn btn--sm", form_class: "contents", title: "A draft page titled for it" do %>
+            <%= icon_tag "document" %> <span>Start a draft page</span>
+          <% end %>
+        <% end %>
+        <%= button_to "Done", market_opportunity_path(opportunity), method: :patch, params: {opportunity: {state: "done"}}, class: "btn btn--sm", form_class: "contents" %>
+        <%= button_to "Dismiss", market_opportunity_path(opportunity), method: :patch, params: {opportunity: {state: "dismissed"}}, class: "btn btn--sm btn--plain", form_class: "contents" %>
+      <% else %>
+        <span class="text-small text-muted"><%= opportunity.state.capitalize %><%= " by #{opportunity.decided_by_name}" if opportunity.decided_by_name %></span>
+        <%= button_to "Open again", market_opportunity_path(opportunity), method: :patch, params: {opportunity: {state: "open"}}, class: "btn btn--sm btn--plain", form_class: "contents" %>
+      <% end %>
+    <% end %>
+  </div>
+</li>

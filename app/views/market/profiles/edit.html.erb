@@ -1,0 +1,38 @@
+<% @page_title = "Market profile" %>
+
+<% content_for :page_actions do %>
+  <%= link_to "Market", market_overview_path, class: "btn" %>
+<% end %>
+<%= render "layouts/shared/page_header", title: "Market profile" %>
+
+<%= form_with url: market_profile_path, method: :patch, scope: :profile, class: "stack stack--lg" do |form| %>
+  <section class="panel panel--padded fields">
+    <div class="stack stack--xs">
+      <h2 class="heading"><%= @profile.business_name %></h2>
+      <p class="text-muted">What every comparison, finding and plan starts from. The website is the site's own address<%= " (#{@profile.domain})" if @profile.domain %>, from Settings › General.</p>
+    </div>
+    <div class="grid grid--2 fields-grid">
+      <%= settings_field "Industry", hint: "As specific as useful: “Residential plumbing”, not “Services”." do %>
+        <%= form.text_field :industry, value: @profile.industry %>
+      <% end %>
+      <%= settings_field "NAICS code", hint: "Optional, 2 to 6 digits." do %>
+        <%= form.text_field :naics_code, value: @profile.naics_code, inputmode: "numeric" %>
+      <% end %>
+    </div>
+    <% [["service_area", "Towns, regions or countries; online-only says so."], ["offerings", "Services and products, the ones that earn most first."],
+        ["audience", "Homeowners, contractors, families, enterprises in finance…"], ["positioning", "Fastest, most trusted, best value, premium…"],
+        ["goals", "More calls from the north of the area, 20 enquiries a month, a new service known."], ["notes", "Anything else that shapes the plan."]].each do |field, hint| %>
+      <%# herb:key field %>
+      <%= settings_field Market::Profile::LABELS[field], hint: hint do %>
+        <%= form.text_area field, value: @profile.public_send(field), rows: 2 %>
+      <% end %>
+    <% end %>
+    <%= settings_field Market::Profile::LABELS["search_location"], hint: "A DataForSEO location, city first: “Grand Rapids,Michigan,United States”. Tracked searches are checked from here; blank uses the country in Settings › Market." do %>
+      <%= form.text_field :search_location, value: @profile.search_location %>
+    <% end %>
+  </section>
+  <div class="cluster">
+    <button type="submit" class="btn btn--primary">Save</button>
+    <%= link_to "Cancel", market_overview_path, class: "btn" %>
+  </div>
+<% end %>
