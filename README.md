@@ -32,7 +32,8 @@ The big picture behind the site's SEO and marketing, beside the site it's about.
   surging, tracked searches dropping, competitors outranking, running ads, publishing or with a page per
   town while the site doesn't, sites competing in search that aren't watched, and data going stale. Each
   has a stable key and is kept while it holds; dismiss one and it stays dismissed while it holds.
-- **The plan** is drafted by Claude (an Anthropic API key in Settings › Market), findings first, in the
+- **The plan** is drafted by the [AI plugin](https://github.com/Martin-Business-Consultants/cms-ai) (your provider, such as
+  OpenCode Zen, set up once in Settings › AI), findings first, in the
   brand's voice (Settings › Brand context). It gives the state of the market, the angle to win on, and
   opportunities by channel, impact, effort and when. It can also suggest an industry, competitors and
   searches to track, each taken in one click after a person checks it. **An opportunity starts a draft
@@ -49,7 +50,7 @@ Everything is at `/api/market/…`, listed in `/api/manifest`, so the `cms` CLI 
     cms get /api/market/competitors                             # each with its latest reading and changes, and the site's own
     cms post /api/market/keywords '{"keyword":{"keywords":"emergency dentist grand rapids"}}'
     cms post /api/market/search/pulls '{}'                      # spends from the month's budget (market:search)
-    cms post /api/market/plans '{}'                             # Claude drafts a plan (a minute or two)
+    cms post /api/market/plans '{}'                             # the AI drafts a plan (a minute or two)
     cms post /api/market/opportunities/12/page '{}'             # a draft page for an opportunity
 
 A refusal says why, with HTTP 409 (`{"error":"refused","message":"Connect DataForSEO in Settings › Market first"}`).

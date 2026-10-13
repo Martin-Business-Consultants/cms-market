@@ -6,8 +6,8 @@ This repository is a plugin for the Libre Publish CMS: a Rails engine loaded int
 
 - Tables are `market_*`. One install is one site, so there's no client: a reading, search snapshot or
   ranking with no competitor is the site's own. Settings and the profile live in the core's Setting
-  "market" (`Market::Settings`, `Market::Profile`); the DataForSEO password and the Anthropic key are
-  among its secrets and are never rendered or read back.
+  "market" (`Market::Settings`, `Market::Profile`); the DataForSEO password is among its secrets and
+  is never rendered or read back.
 - Register everything in `lib/market/engine.rb`'s `config.to_prepare`. Admin controllers inherit
   `Market::ApplicationController`, API ones `Market::Api::BaseController` (refusals are 409
   `{"error":"refused","message":…}`); every action declares its capability.
@@ -22,8 +22,9 @@ This repository is a plugin for the Libre Publish CMS: a Rails engine loaded int
   `changed_at` only on a change, and resolves what stops holding. It runs after every reading and
   pull, after profile and competitor changes, and nightly. `GET /api/market/findings?since=` is
   how a harness hears each change once; `as_of` has microseconds.
-- `Market::Claude` calls the Messages API over Net::HTTP (a plugin may use only the gems the core
-  bundles), with structured output. `Market::Plan#run!` drafts from `Plan::Brief` and never raises.
+- Plans are drafted by the AI plugin (cms-ai): `Market::Plan#run!` asks `Ai.structured` with
+  `Plan::Brief` and never raises; `Plan.ai_available?` checks the plugin is installed, on and set up,
+  so Market works without it. Market keeps no AI key or model of its own.
 - `Market::Opportunity#start_page` makes a draft Page (a free slug, the detail as its meta
   description) and plans the opportunity.
 - Views use the admin's CSS vocabulary; what's Market's alone is a `market-*` class in

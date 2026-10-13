@@ -83,12 +83,13 @@ RSpec.describe "Market", type: :request do
 
     it "keeps secrets out of Settings › Market" do
       patch settings_market_path, params: {market: {dataforseo_login: "api@example.com", dataforseo_password: "secret-pass", monthly_budget_dollars: "40.50",
-                                                    anthropic_api_key: "sk-ant-secret", refresh: "weekly"}}
+                                                    refresh: "weekly"}}
       settings = Market::Settings.current
-      expect(settings).to have_attributes(dataforseo_password: "secret-pass", monthly_budget_cents: 4050, refresh: "weekly", ai_key: "sk-ant-secret")
+      expect(settings).to have_attributes(dataforseo_password: "secret-pass", monthly_budget_cents: 4050, refresh: "weekly")
 
       get settings_market_path
-      expect(response.body).not_to include("secret-pass", "sk-ant-secret")
+      expect(response.body).not_to include("secret-pass")
+      expect(response.body).not_to match(/anthropic/i)
       patch settings_market_path, params: {market: {dataforseo_password: "", monthly_budget_dollars: "10"}}
       expect(Market::Settings.current.dataforseo_password).to eq("secret-pass")
     end
@@ -179,10 +180,11 @@ RSpec.describe "Market", type: :request do
       expect(response).to have_http_status(:conflict)
       expect(response.parsed_body["message"]).to include("Connect DataForSEO")
 
+      switch_plugin :ai, on: true
       post "/api/market/plans", headers: headers, as: :json
-      expect(response.parsed_body["message"]).to include("Anthropic API key")
+      expect(response.parsed_body["message"]).to include("Settings › AI")
 
-      Market::Settings.update("anthropic_api_key" => "sk-test")
+      Ai::Settings.update("provider" => "opencode", "api_key" => "zen-key")
       expect { post "/api/market/plans", headers: headers, as: :json }.to have_enqueued_job(Market::PlanJob)
       expect(response).to have_http_status(:accepted)
     end

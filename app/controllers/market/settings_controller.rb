@@ -16,7 +16,7 @@ module Market
 
     def update
       Settings.update(params.require(:market).permit(:dataforseo_login, :dataforseo_password, :remove_dataforseo_password, :monthly_budget_dollars,
-        :country, :language_code, :refresh, :keyword_limit, :backlinks, :anthropic_api_key, :remove_ai_key, :ai_model))
+        :country, :language_code, :refresh, :keyword_limit, :backlinks))
       Event.record("settings.market_updated")
       redirect_to settings_market_path, notice: "Saved"
     end

@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-# The big picture for the site's business, drafted by Claude (Market::Claude)
-# from everything known (Market::Plan::Brief): the profile, the site and its
+# The big picture for the site's business, drafted by the install's AI (the
+# AI plugin, cms-ai: Ai.structured) from everything known (Market::Plan::Brief): the profile, the site and its
 # content, each competitor's website, the search data, the tracked rankings,
 # the findings and what's already planned. It answers with the state of the
 # market, the angle to win on, an industry, competitors and searches worth
@@ -26,6 +26,15 @@ class Market::Plan < ApplicationRecord
 
   def self.drafting? = where(state: %w[queued running]).any?(&:working?)
 
+  # Plans need the AI plugin (cms-ai), switched on and set up; Market works without it.
+  def self.ai_available? = defined?(::Ai) && ::Ai.respond_to?(:available?) && ::Ai.available?
+
+  def self.ai_unavailable_reason
+    return "Plans are drafted by the AI plugin: install it (Martin-Business-Consultants/cms-ai) and set it up in Settings › AI" unless defined?(::Ai) && ::Ai.respond_to?(:unavailable_reason)
+
+    ::Ai.unavailable_reason
+  end
+
   def working? = state.in?(%w[queued running]) && updated_at > STUCK_AFTER.ago
   def ready? = state == "ready"
   def failed? = state == "failed" || (state.in?(%w[queued running]) && !working?)
@@ -48,9 +57,11 @@ class Market::Plan < ApplicationRecord
   end
 
   # Called by Market::PlanJob. Never raises: what went wrong is kept in `error`.
-  def run!(claude: Market::Claude.new)
+  def run!
     update!(state: "running", started_at: Time.current)
-    answer = claude.structured(system: instructions, prompt: Brief.new.to_s, schema: SCHEMA)
+    raise ArgumentError, self.class.ai_unavailable_reason unless self.class.ai_available?
+
+    answer = ::Ai.structured(purpose: "market_plan", system: instructions, prompt: Brief.new.to_s, schema: SCHEMA, user: user)
     transaction do
       update!(summary: answer["summary"].to_s.strip, positioning: answer["positioning"].to_s.strip.presence,
         industry_suggestion: industry_from(answer["industry"]), competitor_suggestions: competitors_from(answer["competitors_to_check"]),
@@ -60,7 +71,8 @@ class Market::Plan < ApplicationRecord
     update!(state: "ready", finished_at: Time.current)
   rescue => error
     Rails.logger.error("[market] plan #{id}: #{error.class}: #{error.message}")
-    update_columns(state: "failed", error: (error.is_a?(Market::Claude::Error) ? error.message : "#{error.class.name.demodulize}: #{error.message}").truncate(500),
+    known = error.is_a?(ArgumentError) || (defined?(::Ai::Error) && (error.is_a?(::Ai::Error) || error.is_a?(::Ai::Unavailable)))
+    update_columns(state: "failed", error: (known ? error.message : "#{error.class.name.demodulize}: #{error.message}").truncate(500),
       finished_at: Time.current, updated_at: Time.current)
   end
 

@@ -68,7 +68,7 @@ module Market
         enabled_by_default: false, requires: ">= 1.32", homepage: "https://github.com/Martin-Business-Consultants/cms-market",
         description: "The big picture behind the site's SEO and marketing: its competitors' websites watched every week, " \
                      "search data from DataForSEO, findings with the exact figures behind them, and a plan drafted by " \
-                     "Claude whose opportunities start draft pages here."
+                     "the AI plugin whose opportunities start draft pages here."
 
       Cms::Plugins.menu :market, :market, label: "Market", icon: "chart", group: "Content", after: [:leads, :forms, :globals],
         path: -> { market_overview_path }, capability: "market:read"
@@ -83,7 +83,7 @@ module Market
         after: ["Leads", "Commerce", "Forms", "Globals"],
         defaults: {editor: %w[market:read market:write market:search], author: %w[market:read], agent: %w[market:read market:write]}
       Cms::Plugins.settings :market, "Market", -> { settings_market_path },
-        description: "The DataForSEO account search data comes from, its monthly budget, where searches are measured, and Claude for plans.",
+        description: "The DataForSEO account search data comes from, its monthly budget, and where searches are measured.",
         capability: "settings:read"
 
       Cms::Plugins.slot :dashboard, :market, "market/slots/dashboard"
@@ -105,7 +105,7 @@ module Market
       Cms::Plugins.api :market, "/api/market/search/pulls",
         description: "Pulls of search data (GET: their state, cost and notes). POST spends from the month's DataForSEO budget (market:search); {\"pull\":{\"force\":true}} buys parts pulled in the last day again."
       Cms::Plugins.api :market, "/api/market/keywords", description: "Searches tracked: list, add ({\"keyword\":{\"keywords\":\"one a line\"}}), remove."
-      Cms::Plugins.api :market, "/api/market/plans", description: "Plans drafted by Claude (the latest first); POST drafts a new one from everything known (a minute or two)."
+      Cms::Plugins.api :market, "/api/market/plans", description: "Plans drafted by the AI plugin (the latest first); POST drafts a new one from everything known (a minute or two)."
       Cms::Plugins.api :market, "/api/market/opportunities",
         description: "Opportunities, best first (?state, ?channel, ?horizon): add, change (state: done, dismissed, planned, open), delete. POST /api/market/opportunities/:id/page starts a draft page for one."
       Cms::Plugins.api :market, "/api/market/settings", description: "Settings › Market (read with settings:read, change with settings:write; secrets are never read back)."

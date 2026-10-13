@@ -12,7 +12,7 @@ module Market
       end
 
       def create
-        return refuse("Add an Anthropic API key in Settings › Market first") unless Settings.current.ai?
+        return refuse(Plan.ai_unavailable_reason) unless Plan.ai_available?
         return refuse("A plan is already being drafted") if Plan.drafting?
 
         plan = Plan.create!(user: Current.user)

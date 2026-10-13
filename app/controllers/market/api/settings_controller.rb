@@ -13,8 +13,7 @@ module Market
 
       def update
         settings = Settings.update(params.require(:settings).permit(:dataforseo_login, :dataforseo_password, :remove_dataforseo_password,
-          :monthly_budget_dollars, :monthly_budget_cents, :country, :language_code, :refresh, :keyword_limit, :backlinks, :anthropic_api_key,
-          :remove_ai_key, :ai_model))
+          :monthly_budget_dollars, :monthly_budget_cents, :country, :language_code, :refresh, :keyword_limit, :backlinks))
         Event.record("settings.market_updated")
         render json: settings.to_h
       end

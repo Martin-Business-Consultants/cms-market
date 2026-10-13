@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# What Market's specs share: readings and DataForSEO and Claude answers without the network.
+# What Market's specs share: readings and DataForSEO answers without the network.
 module MarketHelpers
   FakeProbe = Struct.new(:domain, :facts)
 
@@ -70,9 +70,6 @@ module MarketHelpers
       yield
     end
   end
-
-  # Claude's answer to a structured request, as the Messages API sends it.
-  def claude_answer(hash) = [200, JSON.generate({"stop_reason" => "end_turn", "content" => [{"type" => "text", "text" => JSON.generate(hash)}]})]
 end
 
 RSpec.configure { it.include MarketHelpers }

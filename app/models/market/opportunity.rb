@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # Something worth doing to win the site's market, on one channel, sized by
-# impact and effort, and when: from a plan Claude drafted, or added by a
+# impact and effort, and when: from a plan the AI drafted, or added by a
 # person. Open until it's planned (a draft page started for it, or marked
 # planned), done, or dismissed.
 class Market::Opportunity < ApplicationRecord

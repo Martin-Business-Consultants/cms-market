@@ -9,7 +9,8 @@ RSpec.describe Market::Plan do
 
   before do
     site_address
-    Market::Settings.update("anthropic_api_key" => "sk-test")
+    switch_plugin :ai, on: true
+    Ai::Settings.update("provider" => "opencode", "api_key" => "zen-key")
     Market::Profile.update("industry" => "Plumbing", "service_area" => "Springfield")
     read_site(rival, locations: 15)
     Market::Opportunity.create!(title: "Claim the Google Business Profile", channel: "local")
@@ -28,15 +29,13 @@ RSpec.describe Market::Plan do
      ]}
   end
 
-  it "is drafted by Claude from everything known, adding new opportunities and suggestions to check" do
-    transport = MarketHelpers::FakeTransport.new(claude_answer(answer))
-    plan.run!(claude: Market::Claude.new(transport: transport))
+  it "is drafted by the AI plugin from everything known, adding new opportunities and suggestions to check" do
+    asked = nil
+    allow(Ai).to receive(:structured) { |**request| asked = request; answer }
+    plan.run!
 
-    request = transport.calls.first.first
-    expect(request).to include(model: "claude-opus-5-5", fallbacks: "default")
-    expect(request.dig(:output_config, :format, :type)).to eq("json_schema")
-    prompt = request[:messages].first[:content]
-    expect(prompt).to include("Business: Acme Plumbing", "Rival (direct, high threat)", "\"locations\":15", "Claim the Google Business Profile")
+    expect(asked).to include(purpose: "market_plan", schema: described_class::SCHEMA)
+    expect(asked[:prompt]).to include("Business: Acme Plumbing", "Rival (direct, high threat)", "\"locations\":15", "Claim the Google Business Profile")
 
     expect(plan.reload).to have_attributes(state: "ready", summary: "Rival owns the towns around Springfield.")
     expect(plan.opportunities.order(:id).map(&:title)).to eq(["Publish a page for each town served", "Start a newsletter"])
@@ -47,9 +46,17 @@ RSpec.describe Market::Plan do
   end
 
   it "keeps why it failed, and changes nothing" do
-    plan.run!(claude: Market::Claude.new(transport: MarketHelpers::FakeTransport.new([401, JSON.generate({"error" => {"message" => "bad key"}})])))
+    allow(Ai).to receive(:structured).and_raise(Ai::Error, "OpenCode Zen didn't accept the key in Settings › AI")
+    plan.run!
 
-    expect(plan.reload).to have_attributes(state: "failed", error: "Anthropic didn't accept the API key in Settings › Market")
+    expect(plan.reload).to have_attributes(state: "failed", error: "OpenCode Zen didn't accept the key in Settings › AI")
     expect(Market::Opportunity.count).to eq(1)
+  end
+
+  it "says what's missing when the AI plugin isn't set up" do
+    Ai::Settings.update("remove_api_key" => "1")
+    plan.run!
+
+    expect(plan.reload.error).to include("Settings › AI")
   end
 end

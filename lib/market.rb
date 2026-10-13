@@ -8,7 +8,8 @@ require "market/engine"
 # websites read from outside every week and what changes in them kept; search
 # data from DataForSEO (visibility, keywords, who ranks where for the searches
 # that matter); findings worked out from all of it, with exact evidence; and a
-# plan drafted by Claude, whose opportunities can start draft pages here.
+# plan drafted by the AI plugin (cms-ai), whose opportunities can start draft
+# pages here.
 # Installed from its own repository; off by default.
 module Market
   # Plugin tables are prefixed with the plugin's key.

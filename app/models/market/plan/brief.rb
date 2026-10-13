@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Everything a plan is drafted from, written out for Claude: the profile, the
+# Everything a plan is drafted from, written out for the AI: the profile, the
 # site's content in the CMS and its live reading, each competitor with how it
 # competes and its latest reading, the search data, the tracked rankings, the
 # open findings, and the opportunities already there.

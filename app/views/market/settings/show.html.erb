@@ -74,21 +74,12 @@
       <%= settings_switch form, :backlinks, "Backlinks too", hint: "Needs DataForSEO's Backlinks subscription.", checked: @settings.backlinks? %>
     </section>
 
-    <section class="panel panel--padded fields">
-      <div class="stack stack--xs">
-        <h2 class="heading">Plans by Claude</h2>
-        <p class="text-muted">Plans are drafted by Claude from everything known: the profile, the site and its content, the competitors, the search data and the findings. Nothing on the site changes until someone acts on one.</p>
-      </div>
-      <div class="grid grid--2 fields-grid">
-        <%= settings_field "Anthropic API key", hint: (@settings.ai? ? "Saved. Leave blank to keep it." : "From console.anthropic.com.") do %>
-          <%= form.password_field :anthropic_api_key, value: nil, autocomplete: "new-password", data: {"1p-ignore": true} %>
-        <% end %>
-        <%= settings_field "Model" do %>
-          <%= form.text_field :ai_model, value: @settings.ai_model %>
-        <% end %>
-      </div>
+    <section class="panel panel--padded stack stack--xs">
+      <h2 class="heading">Plans</h2>
       <% if @settings.ai? %>
-        <label class="choice text-small"><%= form.check_box :remove_ai_key %><span>Remove the saved key</span></label>
+        <p class="text-muted">Drafted by the AI plugin, with the provider and model in <%= link_to "Settings › AI", "#{Cms::PATH if defined?(Cms::PATH)}/settings/ai", class: "link" %>, from everything known: the profile, the site and its content, the competitors, the search data and the findings. Nothing on the site changes until someone acts on one.</p>
+      <% else %>
+        <p class="text-muted"><%= Market::Plan.ai_unavailable_reason %>.</p>
       <% end %>
     </section>
   <% end %>
