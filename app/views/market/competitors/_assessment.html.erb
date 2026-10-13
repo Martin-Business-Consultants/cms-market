@@ -51,7 +51,7 @@
             <span class="text-small text-muted market-text">Why: <%= move["why"] %></span>
             <div class="cluster cluster--sm">
               <% if opportunity %>
-                <%= link_to market_overview_path(tab: "opportunities", item: opportunity.id), class: "btn btn--sm" do %><%= icon_tag "check-circle" %> <span>On the plan: <%= opportunity.state %></span><% end %>
+                <%= link_to market_plan_path(item: opportunity.id), class: "btn btn--sm" do %><%= icon_tag "check-circle" %> <span>On the plan: <%= opportunity.state %></span><% end %>
                 <% if can_write %>
                   <%= button_to market_workups_path, params: {subject: "opportunity:#{opportunity.id}", return_to: market_work_path(subject: "opportunity:#{opportunity.id}")}, class: "btn btn--sm", form_class: "contents" do %>
                     <%= icon_tag "ai" %> <span>Work it out with AI</span>

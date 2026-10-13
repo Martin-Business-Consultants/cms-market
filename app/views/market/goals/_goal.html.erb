@@ -1,0 +1,31 @@
+<%# locals: (goal:, can_write:) %>
+<%# One goal: what's measured and from where, now against the target, how far it's come, whether it's on pace, and by when. %>
+<% progress = goal.progress %>
+<li class="market-goal" id="goal_<%= goal.id %>">
+  <div class="row row--between">
+    <span class="stack stack--2xs grow">
+      <strong><%= goal.title %></strong>
+      <span class="text-small text-muted"><%= goal.info[:source] %><%= " · #{goal.why}" if goal.why.present? %></span>
+    </span>
+    <span class="market-goal__figures text-small">
+      <strong><%= goal.describe(goal.current) %></strong> <span class="text-muted">of <%= goal.describe(goal.target) %><%= " by #{l goal.due_on, format: :short}" if goal.due_on %></span>
+    </span>
+  </div>
+  <div class="cluster cluster--sm">
+    <%= market_meter progress.to_i, label: "#{goal.title}: #{progress || 0}% of the way" %>
+    <% if goal.reached? %>
+      <span class="badge badge--success">Reached</span>
+    <% elsif goal.current.nil? then %>
+      <span class="badge">No data yet</span>
+    <% elsif goal.on_pace? == false then %>
+      <span class="badge badge--warning">Behind</span>
+    <% elsif goal.on_pace? then %>
+      <span class="badge badge--success">On pace</span>
+    <% end %>
+    <% if can_write %>
+      <%= button_to market_goal_path(goal), method: :delete, class: "btn btn--sm btn--plain", form_class: "contents", title: "Remove the goal", data: {turbo_confirm: "Remove “#{goal.title}”?"} do %>
+        <%= icon_tag "close" %><span class="visually-hidden">Remove <%= goal.title %></span>
+      <% end %>
+    <% end %>
+  </div>
+</li>

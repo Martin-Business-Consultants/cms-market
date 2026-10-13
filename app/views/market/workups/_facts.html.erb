@@ -64,9 +64,9 @@
               <span class="text-small text-muted">
                 <% if !check.answered %>
                   <%= check.error.presence || "No answer" %>
-                <% elsif check.mentioned %>
+                <% elsif check.mentioned then %>
                   Named <%= check.mention_rank.to_i.ordinalize %><%= ", and cited the site" if check.cited %>
-                <% elsif check.cited %>
+                <% elsif check.cited then %>
                   Cited the site without naming the business
                 <% else %>
                   Answered without the business

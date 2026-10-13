@@ -15,45 +15,24 @@
 <%= render "layouts/shared/page_header", title: "Search" %>
 
 <div class="stack stack--lg">
-  <% if pull&.working? %>
-    <p class="market-notice text-small" data-controller="refresh" data-refresh-interval-value="5">
-      <%= icon_tag "refresh" %> Pulling from DataForSEO: every site's visibility and keywords, who ranks where for the tracked searches, each AI's answers, and the map. A few minutes.
-    </p>
-  <% elsif pull && pull.state.in?(%w[stopped failed partial]) then %>
-    <% partial = pull.state == "partial" %>
-    <p class="<%= class_names("text-small", "market-notice": partial, "notice notice--danger": !partial) %>" role="status">
-      The last pull <%= (pull.state == "partial") ? "missed some parts" : pull.state %><%= ": #{pull.error}" if pull.error.present? %>.
-      <%= link_to "What happened", market_search_pulls_path, class: "link" %>
-    </p>
+  <%= render "market/searches/tabs", current: @tab %>
+  <%= render "market/searches/status", data: @data, settings: @settings %>
+
+  <% if @tab == "searches" %>
+    <%= render "market/searches/tracked", data: @data, settings: @settings, can_write: can_write %>
+    <%= render "market/searches/console", console: @google, data: @data, can_write: can_write %>
+    <%= render "market/searches/ideas", data: @data, can_write: can_write %>
+    <%= render "market/searches/winners", data: @data, can_write: can_write %>
+  <% elsif @tab == "ai" then %>
+    <%= render "market/searches/ai", data: @data, settings: @settings %>
+  <% elsif @tab == "website" then %>
+    <%= render "market/searches/visibility", data: @data, settings: @settings, pull: pull %>
+    <%= render "market/searches/links", data: @data %>
+    <%= render "market/searches/site", data: @data %>
+  <% else %>
+    <%= render "market/searches/reviews", data: @data %>
+    <%= render "market/searches/profiles", data: @data %>
   <% end %>
-
-
-  <% if @settings.sandbox? %>
-    <p class="market-notice text-small" role="status"><strong>Test mode:</strong> pulls use DataForSEO's sandbox, free and made up. Switch it off in Settings › Market for real data.</p>
-  <% end %>
-
-  <nav class="cluster cluster--sm text-small market-jump" aria-label="On this page">
-    <%= link_to "Searches", "#tracked", class: "link" %>
-    <%= link_to "AI search", "#ai", class: "link" %>
-    <% if @google&.totals %><%= link_to "Search Console", "#search_console", class: "link" %><% end %>
-    <%= link_to "Visibility", "#visibility", class: "link" %>
-    <%= link_to "Who wins", "#winners", class: "link" %>
-    <%= link_to "Business Profiles", "#profiles", class: "link" %>
-    <%= link_to "Site health", "#health", class: "link" %>
-    <%= link_to "Reviews", "#reviews", class: "link" %>
-    <%= link_to "Links", "#links", class: "link" %>
-    <%= link_to "Web mentions", "#web", class: "link" %>
-    <%= link_to "Maps", market_maps_path, class: "link" %>
-  </nav>
-
-  <%= render "market/searches/tracked", data: @data, settings: @settings, can_write: can_write %>
-  <%= render "market/searches/ai", data: @data, settings: @settings %>
-  <%= render "market/searches/console", console: @google, data: @data, can_write: can_write %>
-  <%= render "market/searches/visibility", data: @data, settings: @settings, pull: pull %>
-  <%= render "market/searches/winners", data: @data, can_write: can_write %>
-  <%= render "market/searches/reviews", data: @data %>
-  <%= render "market/searches/business", data: @data %>
-  <%= render "market/searches/links", data: @data %>
 </div>
 
 <%# A row opened: its facts and the AI's suggestions, in a sheet over the page; the address keeps it, so a reload (and the wait for the AI) keeps it open. %>

@@ -1,38 +1,7 @@
 <%# locals: (data:) %>
-<%# The business beyond the results: each Google Business Profile side by side, the site's home page health, and the web naming each business. %>
-<% profiles = data.sites.select(&:business_profile) %>
+<%# The site beyond its rankings: the home page's health, and the web naming each business. %>
 <% health = data.market("site_health")&.data %>
 <% web = data.sites.select(&:web_mentions) %>
-<% if profiles.any? %>
-  <section class="panel panel--padded stack stack--sm" id="profiles">
-    <div class="row row--between">
-      <h2 class="heading">Business Profiles <%= market_source :business %></h2>
-      <span class="text-small text-muted">What customers see on Google, side by side</span>
-    </div>
-    <div class="panel--scroll">
-      <table class="data-table market-compare">
-        <thead><tr><th>Business</th><th class="data-table__num">Rating</th><th class="data-table__num">Reviews</th><th class="data-table__num">Photos</th><th>Claimed</th><th>Hours</th><th>Description</th><th>Categories</th></tr></thead>
-        <tbody>
-          <% profiles.each do |site| %>
-            <%# herb:key site.domain %>
-            <% profile = site.business_profile.data %>
-            <tr class="<%= class_names("market-compare__own": site.own?) %>">
-              <td><strong><%= site.name %></strong><div class="text-small text-muted"><%= profile["category"] %></div></td>
-              <td class="data-table__num"><%= profile["rating"] ? "#{profile["rating"]}★" : "—" %></td>
-              <td class="data-table__num"><%= number_with_delimiter profile["reviews"].to_i %></td>
-              <td class="data-table__num"><%= number_with_delimiter profile["photos"].to_i %></td>
-              <td><%= profile["claimed"] ? "Yes" : tag.span("No", class: "market-down") %></td>
-              <td><%= profile["hours"] ? "Yes" : tag.span("No", class: "market-down") %></td>
-              <td><%= profile["description"] ? "Yes" : tag.span("No", class: "market-down") %></td>
-              <td class="text-small"><%= 1 + Array(profile["additional_categories"]).size %></td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
-    </div>
-  </section>
-<% end %>
-
 <% if health %>
   <section class="panel panel--padded stack stack--sm" id="health">
     <div class="row row--between">

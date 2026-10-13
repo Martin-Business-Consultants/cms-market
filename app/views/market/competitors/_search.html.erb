@@ -1,0 +1,46 @@
+<%# locals: (competitor:, search:) %>
+<%# A competitor in search and on Google, from the latest pull: visits from search (now and over the year), its best pages, its Business Profile with its posts and customers' questions, and its reviews with what customers praise and complain about. %>
+<% overview = search["overview"] %>
+<% history = Array(search.dig("rank_history", "months")) %>
+<% pages = Array(search.dig("relevant_pages", "pages")) %>
+<% profile = search["business_profile"] %>
+<% reviews = search["reviews"] %>
+<% if overview || history.any? || pages.any? || profile || reviews %>
+  <section class="panel panel--padded stack stack--sm">
+    <h2 class="heading">In search and on Google</h2>
+    <dl class="market-facts text-small">
+      <% if overview %>
+        <dt>Visits from search</dt><dd><%= number_with_delimiter overview["organic_traffic"] %> a month (est.) · <%= number_with_delimiter overview["organic_keywords"] %> keywords, <%= overview["top_10"] %> on page one</dd>
+      <% end %>
+      <% if profile %>
+        <dt>Business Profile</dt><dd><%= profile["rating"] ? "#{profile["rating"]}★ from #{number_with_delimiter profile["reviews"]}" : "No rating" %> · <%= number_with_delimiter profile["photos"] %> photos<%= " · not claimed" unless profile["claimed"] %></dd>
+      <% end %>
+      <% if search["gbp_posts"] %><dt>Posts on Google</dt><dd><%= search["gbp_posts"]["last_90_days"] %> in 90 days</dd><% end %>
+      <% if search["gbp_qa"] %><dt>Customers' questions</dt><dd><%= Array(search["gbp_qa"]["questions"]).size %>, <%= search["gbp_qa"]["unanswered"] %> unanswered</dd><% end %>
+      <% if reviews %>
+        <dt>Praised for</dt><dd><%= Array(reviews.dig("themes", "praise")).join(", ").presence || "—" %></dd>
+        <dt>Complaints</dt><dd><%= Array(reviews.dig("themes", "complaints")).join(", ").presence || "—" %></dd>
+      <% end %>
+      <% if search["trustpilot"]&.dig("count").to_i.positive? %><dt>Trustpilot</dt><dd><%= search["trustpilot"]["rating"] %>★ from <%= number_with_delimiter search["trustpilot"]["count"] %></dd><% end %>
+      <% if search["tripadvisor"]&.dig("count").to_i.positive? %><dt>Tripadvisor</dt><dd><%= search["tripadvisor"]["rating"] %>★ from <%= number_with_delimiter search["tripadvisor"]["count"] %></dd><% end %>
+    </dl>
+    <% if history.size > 1 %>
+      <%= market_line_chart [Market::Report::Series.new(name: "#{competitor.name}: visits from search", own: false, points: history.map { [Date.parse("#{it["month"]}-01").to_time, it["traffic"].to_f] })],
+            label: "#{competitor.name}'s estimated visits from search by month" %>
+    <% end %>
+    <% if pages.any? %>
+      <h3 class="label">Their best pages</h3>
+      <table class="data-table market-evidence-table">
+        <thead><tr><th>Page</th><th class="data-table__num">Visits</th><th class="data-table__num">Top 3</th></tr></thead>
+        <tbody>
+          <% pages.first(8).each do |page| %>
+            <%# herb:key page["url"] %>
+            <tr><td><%= link_to page["url"].to_s.sub(%r{\Ahttps?://(www\.)?}, "").truncate(60), page["url"], class: "link", target: "_blank", rel: "noopener" %></td>
+              <td class="data-table__num"><%= number_with_delimiter page["traffic"] %></td><td class="data-table__num"><%= page["top_3"] %></td></tr>
+          <% end %>
+        </tbody>
+      </table>
+      <p class="text-small text-muted">What brings them customers from search. A better page here on the same thing is how to take some.</p>
+    <% end %>
+  </section>
+<% end %>

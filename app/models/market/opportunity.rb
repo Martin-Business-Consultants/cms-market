@@ -17,6 +17,7 @@ class Market::Opportunity < ApplicationRecord
   ACTIVE = %w[open planned].freeze
 
   belongs_to :plan, optional: true
+  belongs_to :goal, optional: true
   belongs_to :page, class_name: "::Page", optional: true
 
   normalizes :title, with: ->(title) { title.strip.squeeze(" ") }

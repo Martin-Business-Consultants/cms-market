@@ -48,11 +48,14 @@ RSpec.describe "Market local search" do
       end
     end
 
-    it "searches from the ZIP and checks each search on Maps from every point of the grid" do
+    it "searches from the ZIP and checks each search on Maps from every point of the grid, queued, and makes the scan when every point is in" do
       fake = MarketHelpers::FakeApi.new(maps: method(:maps))
       Market::SearchPull.create!.run!(api: fake)
 
-      expect(fake.calls.count { it == "maps:plumber" }).to eq(9)
+      expect(fake.calls).to include("queue:maps_point:9", "queue:ranking:1")
+      expect(Market::LocalScan.count).to eq(0)
+      expect(Market::QueuedTask.fetch_ready!(api: fake)).to eq(0)
+      expect(fake.calls.count { it == "queued_result:maps_point" }).to eq(9)
       expect(Market::Ranking.last.location).to eq("49503 (42.9632,-85.6528)")
       scan = Market::LocalScan.last
       expect(scan).to have_attributes(zip: "49503", grid: 3, found_points: 6, top3_share: 0.33, average_position: ((3 * 1 + 3 * 6 + 3 * 21) / 9.0).round(1))
@@ -66,8 +69,12 @@ RSpec.describe "Market local search" do
       expect(Market::SearchPull.ceiling).to be >= 9 * Market::Search::Api::CEILINGS[:maps]
     end
 
-    it "says when the business isn't on the map anywhere in the area" do
-      Market::SearchPull.create!.run!(api: MarketHelpers::FakeApi.new(maps: ->(*) { [{"position" => 1, "title" => "Rival", "domain" => "rival.example"}] }))
+    it "says when the business isn't on the map anywhere in the area, checked live when not saving money" do
+      Market::Settings.update("queue" => "0")
+      fake = MarketHelpers::FakeApi.new(maps: ->(*) { [{"position" => 1, "title" => "Rival", "domain" => "rival.example"}] })
+      Market::SearchPull.create!.run!(api: fake)
+
+      expect(fake.calls.count { it == "maps:plumber" }).to eq(9)
 
       expect(Market::Finding.find_by!(kind: "local_missing").title).to eq("Acme Plumbing isn't on Google Maps for “plumber” anywhere within 10 miles of 49503")
     end

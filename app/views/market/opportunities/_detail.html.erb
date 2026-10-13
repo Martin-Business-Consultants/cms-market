@@ -1,0 +1,74 @@
+<%# locals: (opportunity:, can_write:, back:) %>
+<%# One opportunity, open beside the list: what to do and why, the goal it serves, and what can be done about it: work it out with the AI (changes for Approvals), put it on the content calendar, start a draft page, mark it done, dismiss it. %>
+<% subject = "opportunity:#{opportunity.id}" %>
+<% worked = Market::Workup.where(subject: subject).exists? %>
+<% calendar = Cms::Plugins.enabled?(:calendar) && respond_to?(:calendar_ideas_path) && opportunity.channel.in?(%w[content social local reviews seo brand email]) %>
+<div class="stack stack--md">
+  <div class="stack stack--xs">
+    <div class="cluster cluster--sm">
+      <%= market_impact_tag opportunity %>
+      <%= market_effort_tag opportunity %>
+      <% unless opportunity.state == "open" %><%= status_tag opportunity.state %><% end %>
+      <span class="text-small text-muted"><%= opportunity.channel_label %> · <%= opportunity.horizon_label %><%= " · from a plan" if opportunity.plan_id %></span>
+    </div>
+    <h2 class="heading heading--lg"><%= opportunity.title %></h2>
+    <% if opportunity.detail.present? %><p class="market-text"><%= opportunity.detail %></p><% end %>
+    <% if opportunity.evidence.present? %><p class="text-small text-muted market-text">Why: <%= opportunity.evidence %></p><% end %>
+  </div>
+
+  <% goals = Market::Goal.active.ordered.to_a %>
+  <% if goals.any? %>
+    <% if can_write %>
+      <%= form_with url: market_opportunity_path(opportunity), method: :patch, scope: :opportunity, class: "cluster cluster--sm" do |form| %>
+        <%= hidden_field_tag :return_to, back, id: nil %>
+        <span class="text-small text-muted">Serves</span>
+        <%= form.select :goal_id, [["No goal in particular", ""]] + goals.map { [it.title, it.id] }, {selected: opportunity.goal_id}, aria: {label: "The goal it serves"} %>
+        <button type="submit" class="btn btn--sm btn--plain">Save</button>
+      <% end %>
+    <% elsif opportunity.goal then %>
+      <p class="text-small">Serves: <%= opportunity.goal.title %></p>
+    <% end %>
+  <% end %>
+
+  <% if opportunity.page %>
+    <p class="text-small"><%= link_to edit_page_path(opportunity.page.path), class: "link", data: {turbo_frame: "_top"} do %><%= icon_tag "document" %> <%= opportunity.page.title %> (<%= opportunity.page.status %>)<% end %></p>
+  <% end %>
+
+  <% if can_write %>
+    <% if opportunity.active? %>
+      <div class="stack stack--xs">
+        <h3 class="label">Do it</h3>
+        <div class="cluster cluster--sm">
+          <% if worked %>
+            <%= link_to market_work_path(subject: subject), class: "btn btn--sm btn--primary", data: {turbo_frame: "_top"} do %><%= icon_tag "ai" %> <span>The AI's changes</span><% end %>
+          <% elsif Market::Plan.ai_available? then %>
+            <%= button_to market_workups_path, params: {subject: subject, return_to: market_work_path(subject: subject)}, class: "btn btn--sm btn--primary", form_class: "contents", form: {data: {turbo_frame: "_top"}},
+                  title: "The AI suggests changes to the site's pages and meta data, posts, searches to track and tasks; page changes go to Approvals" do %>
+              <%= icon_tag "ai" %> <span>Work it out with AI</span>
+            <% end %>
+          <% end %>
+          <% if calendar %>
+            <%= button_to calendar_ideas_path, params: {source: "market:opportunity:#{opportunity.id}", return_to: back}, class: "btn btn--sm", form_class: "contents",
+                  title: "An idea on the content calendar, to plan, write and schedule" do %>
+              <%= icon_tag "calendar" %> <span>Put it on the calendar</span>
+            <% end %>
+          <% end %>
+          <% if opportunity.page.nil? && opportunity.channel.in?(%w[seo content website local]) && Current.user.can?("pages:write") %>
+            <%= button_to market_opportunity_page_path(opportunity), class: "btn btn--sm", form_class: "contents", form: {data: {turbo_frame: "_top"}}, title: "A blank draft page titled for it" do %>
+              <%= icon_tag "document" %> <span>Start a draft page</span>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+      <div class="cluster cluster--sm">
+        <%= button_to "Mark it done", market_opportunity_path(opportunity), method: :patch, params: {opportunity: {state: "done"}, return_to: back}, class: "btn btn--sm", form_class: "contents" %>
+        <%= button_to "Dismiss", market_opportunity_path(opportunity), method: :patch, params: {opportunity: {state: "dismissed"}, return_to: back}, class: "btn btn--sm btn--plain", form_class: "contents" %>
+      </div>
+    <% else %>
+      <div class="cluster cluster--sm">
+        <span class="text-small text-muted"><%= opportunity.state.capitalize %><%= " by #{opportunity.decided_by_name}" if opportunity.decided_by_name %></span>
+        <%= button_to "Open again", market_opportunity_path(opportunity), method: :patch, params: {opportunity: {state: "open"}, return_to: back}, class: "btn btn--sm btn--plain", form_class: "contents" %>
+      </div>
+    <% end %>
+  <% end %>
+</div>

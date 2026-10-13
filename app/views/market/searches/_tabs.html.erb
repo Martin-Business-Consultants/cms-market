@@ -1,0 +1,11 @@
+<%# locals: (current:) %>
+<%# Search's tabs: the searches customers make (Google), how AI answers them, Maps across the area, the website itself, and what customers say. Maps is a screen of its own, shown as a tab here. %>
+<% tabs = Market::SearchesController::TABS %>
+<nav class="market-tabs market-tabs--page" aria-label="Search">
+  <% tabs.each do |key, (label, _)| %>
+    <%# herb:key key %>
+    <% path = (key == "local") ? market_maps_path : market_search_path(tab: ((key == "searches") ? nil : key)) %>
+    <%= link_to label, path, class: class_names("market-tab", "market-tab--current": current == key), aria: {current: ((current == key) ? "page" : nil)} %>
+  <% end %>
+</nav>
+<p class="text-small text-muted market-tab-note"><%= tabs.dig(current, 1) %></p>

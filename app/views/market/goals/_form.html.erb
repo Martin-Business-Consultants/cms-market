@@ -1,0 +1,28 @@
+<%# The form for a goal: what to measure (and for which search), the target, by when, and why. %>
+<% keywords = Market::Keyword.ordered.to_a %>
+<%= form_with url: market_goals_path, scope: :goal, class: "fields market-goal-form" do |form| %>
+  <div class="grid grid--2 fields-grid" data-controller="show-if">
+    <div data-field-name="metric">
+      <%= settings_field "Measure" do %>
+        <%= form.select :metric, Market::Goal::METRICS.map { |key, metric| [metric[:label], key] } %>
+      <% end %>
+    </div>
+    <div data-show-if='{"field":"metric","in":["search_position","maps_top3"]}'>
+      <%= settings_field "For the search" do %>
+        <%= form.select :keyword_id, keywords.any? ? keywords.map { [it.keyword, it.id] } : [["Track a search first", ""]] %>
+      <% end %>
+    </div>
+  </div>
+  <div class="grid grid--2 fields-grid">
+    <%= settings_field "Target", hint: "The number to reach (a place on Google: lower is better)." do %>
+      <%= form.number_field :target, step: "any", required: true %>
+    <% end %>
+    <%= settings_field "By" do %>
+      <%= form.date_field :due_on, value: (Date.current + 90).iso8601 %>
+    <% end %>
+  </div>
+  <%= settings_field "Why it matters", hint: "Optional. The AI aims the plan at it." do %>
+    <%= form.text_field :why, placeholder: "Most of our jobs come from calls" %>
+  <% end %>
+  <div><button type="submit" class="btn btn--sm btn--primary">Set the goal</button></div>
+<% end %>

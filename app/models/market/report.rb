@@ -131,6 +131,8 @@ class Market::Report
       .map { |month, rows| [Date.parse("#{month}-01"), rows.sum { it[1].to_d }] }
   end
 
+  def goals = @goals ||= Market::Goal.active.ordered.includes(:keyword).to_a
+
   def any_data? = parts.any? || visibility.any? || posting.any?
 
   # Google's own figures, from the Google plugin when it's connected; nil for each service that isn't.
@@ -193,12 +195,19 @@ class Market::Report
     @overview_snapshots ||= Market::SearchSnapshot.where(kind: "overview", taken_at: @since..).where(competitor_id: [nil, *@competitors.map(&:id)]).order(:taken_at).to_a
   end
 
+  # Each site's figure at each pull; for visits, a year of DataForSEO's monthly history first (where it was pulled), so the chart starts full.
   def site_series(key)
     names = @competitors.to_h { [it.id, it.name] }
-    overview_snapshots.group_by(&:competitor_id).map do |id, rows|
-      Series.new(name: id ? names[id] : @profile.business_name, points: rows.map { [it.taken_at, it.data[key].to_f] }, own: id.nil?)
-    end.sort_by { it.own ? 0 : 1 }
+    pulled = overview_snapshots.group_by(&:competitor_id)
+    history = (key == "organic_traffic") ? Market::SearchSnapshot.latest_by_site(@competitors.map(&:id), kinds: ["rank_history"]).transform_values { it.dig("rank_history", 0) }.compact : {}
+    (pulled.keys | history.keys).map do |id|
+      monthly = Array(history[id]&.data&.dig("months")).map { [Date.parse("#{it["month"]}-01").to_time, it["traffic"].to_f] }.select { it[0] >= @since }
+      first = Array(pulled[id]).map(&:taken_at).min
+      points = monthly.reject { first && it[0] >= first.beginning_of_month } + Array(pulled[id]).map { [it.taken_at, it.data[key].to_f] }
+      Series.new(name: id ? names[id] : @profile.business_name, points: points.sort_by(&:first), own: id.nil?)
+    end.reject { it.points.empty? }.sort_by { it.own ? 0 : 1 }
   end
+
 
   def latest_values(series) = series.to_h { [it.name, it.points.last&.last.to_f] }
 

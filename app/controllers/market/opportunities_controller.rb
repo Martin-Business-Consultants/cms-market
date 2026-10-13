@@ -11,9 +11,9 @@ module Market
     end
 
     def create
-      opportunity = Opportunity.new(params.require(:opportunity).permit(:title, :channel, :detail, :evidence, :impact, :effort, :horizon))
+      opportunity = Opportunity.new(params.require(:opportunity).permit(:title, :channel, :detail, :evidence, :impact, :effort, :horizon, :goal_id))
       if opportunity.save
-        redirect_to back_or(market_plan_path(anchor: "opportunities")), notice: "Added “#{opportunity.title}”"
+        redirect_to back_or(market_plan_path(item: opportunity.id)), notice: "Added “#{opportunity.title}”"
       else
         redirect_to market_plan_path(anchor: "opportunities"), alert: opportunity.errors.full_messages.to_sentence
       end
@@ -21,7 +21,7 @@ module Market
 
     def update
       opportunity = Opportunity.find(params[:id])
-      attributes = params.require(:opportunity).permit(:state, :title, :channel, :detail, :evidence, :impact, :effort, :horizon)
+      attributes = params.require(:opportunity).permit(:state, :title, :channel, :detail, :evidence, :impact, :effort, :horizon, :goal_id)
       case attributes.delete(:state)
       when "done" then opportunity.complete(by: Current.user)
       when "dismissed" then opportunity.dismiss(by: Current.user)

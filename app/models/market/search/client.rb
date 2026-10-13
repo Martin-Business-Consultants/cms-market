@@ -70,6 +70,29 @@ module Market
         @last_task&.dig("id") or raise InvalidError.new("DataForSEO set no task for #{endpoint}")
       end
 
+      # Up to 100 queued tasks set in one request (Standard, about a third of Live's price): their ids,
+      # in order, nil for one DataForSEO refused. `ceiling` is the most they might cost together.
+      def post_tasks(endpoint, tasks, target:, ceiling:)
+        raise AuthError.new("DataForSEO isn't connected: add the login and password in Settings › Market.") unless @setting.search_connected?
+        raise BudgetError.new("This month's search budget has $#{format("%.2f", @setting.remaining_budget)} left: not enough to queue #{tasks.size} #{endpoint.split("/")[-2]} checks.") if ceiling.to_d > @setting.remaining_budget
+
+        tasks.each_slice(100).flat_map do |batch|
+          json = nil
+          error = nil
+          started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          begin
+            json = parse(*@transport.call(:post, (@setting.sandbox? ? SANDBOX : BASE) + endpoint, batch))
+            check!(json["status_code"], json["status_message"])
+            Array(json["tasks"]).map { it["id"] if it["status_code"].to_i == 20100 }
+          rescue Error => failure
+            error = failure
+            raise
+          ensure
+            record(endpoint, target, json, error, 1, started)
+          end
+        end
+      end
+
       # A queued task's result (task_get, free): its `result` array; NotReady while it's still being done.
       def task_result(endpoint) = get(endpoint)
 

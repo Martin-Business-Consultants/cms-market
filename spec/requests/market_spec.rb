@@ -159,24 +159,46 @@ RSpec.describe "Market", type: :request do
       expect(response.body).to include("On the plan: open")
     end
 
-    it "has the overview's tabs side by side with the open one, where it's acted on" do
-      opportunity = Market::Opportunity.create!(title: "Publish town pages", channel: "local", impact: "high", effort: "low")
+    it "starts with the goals and what to do next, the open one beside the list, where it's acted on" do
+      opportunity = Market::Opportunity.create!(title: "Publish town pages", channel: "local", impact: "high", effort: "low", horizon: "now")
       change = Market::Reading.where.not(competitor_id: nil).latest_first.first
 
       get market_overview_path
-      expect(response.body).to include(%(<turbo-frame id="market_overview" data-turbo-action="advance">), "What the data says", "Best opportunities", "What competitors changed")
+      expect(response.body).to include("Goals", "Set a goal or two", "Do next", "Getting set up", "Publish town pages", "Quick win",
+        %(<turbo-frame id="market_overview" data-turbo-action="advance">), "What competitors changed", "Now runs Google Ads")
 
-      get market_overview_path(tab: "opportunities")
-      expect(response.body).to include("Publish town pages", "Start a draft page", "Done")
-      patch market_opportunity_path(opportunity), params: {opportunity: {state: "done"}, return_to: market_overview_path(tab: "opportunities", item: opportunity.id)}
-      expect(response).to redirect_to(market_overview_path(tab: "opportunities", item: opportunity.id))
+      goal = Market::Goal.create!(metric: "enquiries", target: 30, due_on: 3.months.from_now.to_date)
+      opportunity.update!(goal: goal)
+      switch_plugin :calendar, on: true
+      get market_overview_path(item: "opportunity:#{opportunity.id}")
+      expect(response.body).to include("For: #{goal.title}", "Put it on the calendar", "Mark it done")
+      patch market_opportunity_path(opportunity), params: {opportunity: {state: "done"}, return_to: market_overview_path}
+      expect(response).to redirect_to(market_overview_path)
       expect(opportunity.reload.state).to eq("done")
 
-      get market_overview_path(tab: "changes", item: change.id)
-      expect(response.body).to include("Rival Plumbing changed their website", "Now runs Google Ads", "Make it an opportunity")
       post market_change_opportunity_path(change), params: {return_to: "//evil.example"}
-      expect(response).to redirect_to(market_overview_path(tab: "changes", item: change.id))
-      expect(Market::Opportunity.find_by!(finding_key: "change:#{change.id}").title).to eq("Answer Rival Plumbing's changes")
+      created = Market::Opportunity.find_by!(finding_key: "change:#{change.id}")
+      expect(response).to redirect_to(market_plan_path(item: created.id))
+      expect(created.title).to eq("Answer Rival Plumbing's changes")
+    end
+
+    it "sets goals on the plan, measures them, and groups the plan's opportunities under them" do
+      post market_goals_path, params: {goal: {metric: "enquiries", target: "30", due_on: 3.months.from_now.to_date.iso8601}}
+      goal = Market::Goal.last
+      expect(goal).to have_attributes(metric: "enquiries", target: 30)
+      Market::Opportunity.create!(title: "Add a quote form to every service page", channel: "website", goal: goal)
+      Market::Opportunity.create!(title: "Ask for reviews", channel: "reviews", state: "done")
+
+      get market_plan_path
+      expect(response.body).to include(goal.title, "Add a quote form to every service page")
+      expect(response.body).not_to include("Ask for reviews")
+      get market_plan_path(tab: "done")
+      expect(response.body).to include("Ask for reviews")
+
+      patch market_goal_path(goal), params: {goal: {target: "40"}}
+      expect(goal.reload.target).to eq(40)
+      delete market_goal_path(goal)
+      expect(Market::Goal.find_by(id: goal.id)&.state).not_to eq("active")
     end
 
     it "says what to do next about each competitor, and sizes one up with the AI" do
@@ -252,9 +274,11 @@ RSpec.describe "Market", type: :request do
       Market::AiCheck.from_answer(keyword: keyword, platform: "claude", text: "Acme Plumbing (acme.example).", sources: [{"url" => "https://acme.example/"}]).save!
       Market::Settings.update("sandbox" => "1", "ai_platforms" => %w[chat_gpt claude])
 
-      get market_search_path
+      get market_search_path(tab: "ai")
       expect(response.body).to include("AI search", "Asked each tracked search", "Named instead", "Rival Plumbing", "yelp.com", "Test mode",
-        "Google, checked live", "AI answers, checked live", "market-ai--named", "market-ai--missing")
+        "AI answers, checked live")
+      get market_search_path
+      expect(response.body).to include("Google, checked live", "market-ai--named", "market-ai--missing")
 
       get market_search_path(sheet: "keyword:#{keyword.id}")
       expect(response.body).to include("ChatGPT", "Answered without the business", "Named 1st, and cited the site", "Cites: yelp.com")
@@ -277,11 +301,58 @@ RSpec.describe "Market", type: :request do
         data: {"total" => 1, "sites" => [{"domain" => "springfieldchamber.example", "links_to" => ["rival.example"], "rank" => 55}]})
       Market::QueuedTask.create!(kind: "reviews", competitor: rival, task_id: "t", endpoint: "business_data/google/reviews/task_get", posted_at: Time.current)
 
+      get market_search_path(tab: "reputation")
+      expect(response.body).to include("Reviews", "fair prices", "slow callbacks", "Call back within the hour.", "Not answered yet", "Answer it", "on their way")
+      get market_search_path(tab: "website")
+      expect(response.body).to include("Links", "springfieldchamber.example", "Linking to competitors, not to the site")
       get market_search_path
-      expect(response.body).to include("Reviews", "fair prices", "slow callbacks", "Call back within the hour.", "Not answered yet", "Answer it",
-        "on their way", "Links", "springfieldchamber.example", "Linking to competitors, not to the site", "Here", "90")
+      expect(response.body).to include("Here", "90")
       get market_report_path
       expect(response.body).to include("Sites linking in")
+    end
+
+    it "shows what's worth writing about, the year's history, the profiles and what AI cites, and a competitor's search side" do
+      Market::Keyword.track("plumber")
+      snap = ->(kind, data, competitor: nil) { Market::SearchSnapshot.create!(competitor: competitor, domain: competitor&.domain || "acme.example", kind: kind, taken_at: Time.current, data: data) }
+      snap.call("content_ideas", {"ideas" => [{"keyword" => "how much does a plumber cost", "volume" => 1300, "difficulty" => 18, "question" => true, "peak" => {"month" => 3, "lift" => 80}}]})
+      months = 12.times.map { |index| {"month" => (11 - index).months.ago.strftime("%Y-%m"), "keywords" => 20 + index, "traffic" => 100 + index * 10, "top_10" => 4} }
+      snap.call("rank_history", {"months" => months})
+      snap.call("rank_history", {"months" => months}, competitor: rival)
+      snap.call("relevant_pages", {"pages" => [{"url" => "https://rival.example/drain-cleaning", "traffic" => 300, "keywords" => 25, "top_3" => 4}]}, competitor: rival)
+      snap.call("ai_topics", {"domains" => [{"domain" => "angi.com", "mentions" => 40}], "pages" => [{"page" => "https://angi.com/best-plumbers", "mentions" => 12}]})
+      snap.call("ai_history", {"months" => [{"month" => "2026-09", "mentions" => 2}, {"month" => "2026-10", "mentions" => 5}]})
+      snap.call("business_profile", {"title" => "Acme", "claimed" => true, "rating" => 4.1, "reviews" => 9})
+      snap.call("gbp_qa", {"questions" => [{"question" => "Do you work weekends?", "answers" => 0}], "unanswered" => 1})
+      snap.call("gbp_posts", {"posts" => [{"text" => "Spring special", "at" => 3.days.ago.iso8601}], "last_90_days" => 1})
+      snap.call("gbp_posts", {"posts" => [], "last_90_days" => 7}, competitor: rival)
+      snap.call("trustpilot", {"rating" => 3.9, "count" => 12, "reviews" => [{"text" => "Turned up late", "stars" => 2}]})
+
+      get market_search_path
+      expect(response.body).to include("Worth writing about", "how much does a plumber cost", "1,300")
+      get market_search_path(tab: "website")
+      expect(response.body).to include("Visits from search, the past year")
+      get market_search_path(tab: "ai")
+      expect(response.body).to include("Sites AI cites for these searches", "angi.com", "Pages AI cites most", "AI answers, by month", "AI mentions by month")
+      get market_search_path(tab: "reputation")
+      expect(response.body).to include("Business Profiles", "Do you work weekends?", "Elsewhere", "Trustpilot")
+      get market_competitor_path(rival)
+      expect(response.body).to include("In search and on Google", "Their best pages", "rival.example/drain-cleaning")
+    end
+
+    it "gives agents the goals and what to do next, and sets goals through the API" do
+      Market::Opportunity.create!(title: "Publish town pages", channel: "local", impact: "high", effort: "low", horizon: "now")
+      post "/api/market/goals", params: {goal: {metric: "reviews", target: 60, due_on: 2.months.from_now.to_date}}, headers: api_headers(admin), as: :json
+      expect(response).to have_http_status(:created)
+      expect(response.parsed_body).to include("title" => "Google reviews", "target" => 60.0)
+      post "/api/market/goals", params: {goal: {metric: "search_position", target: 3}}, headers: api_headers(admin), as: :json
+      expect(response).to have_http_status(:unprocessable_content)
+
+      get "/api/market", headers: api_headers(admin)
+      expect(response.parsed_body["goals"].first).to include("title" => "Google reviews")
+      expect(response.parsed_body["do_next"].map { it["title"] }).to include("Publish town pages")
+      expect(response.parsed_body["setup"].map { it["key"] }).to include("goals", "competitors")
+      get "/api/market/goals", headers: api_headers(admin)
+      expect(response.parsed_body["metrics"].keys).to include("calls", "maps_top3")
     end
 
     it "keeps secrets out of Settings › Market" do

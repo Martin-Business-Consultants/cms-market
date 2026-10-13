@@ -47,7 +47,9 @@ class Market::Finding < ApplicationRecord
     case kind
     when /\Alocal/, "gbp_calls_falling" then [:local, nil]
     when /\Aai_/ then [:ai, nil]
-    when /\Agbp_(unclaimed|missing|photos)\z/, "site_slow", "site_issues", "web_mentions_gap", "questions_to_answer", /\Areview/, /\Alink/ then [:search, nil]
+    when /\Agbp_(unclaimed|missing|photos|questions|posts)\z/, /\Areview/ then [:search, "reputation"]
+    when "site_slow", "site_issues", "web_mentions_gap", /\Alink/ then [:search, "website"]
+    when "seasons" then [:search, nil]
     when "gsc_low_clicks" then (page = ::Page.find_by(path: evidence["page_path"])) ? [:page, page] : [:search, nil]
     when "ga_leaky_pages", "ga_key_events_falling", "gbp_unanswered_reviews", "gsc_clicks_falling" then [:google, nil]
     when "keyword_gap", "competitor_surge", "site_changes" then competitor ? [:competitor, competitor] : [:search, nil]

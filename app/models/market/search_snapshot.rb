@@ -8,10 +8,15 @@
 # the market as a whole (on the site's own row): competitors (who shares its
 # keywords), serp_competitors (who wins the tracked searches),
 # keyword_facts, ai_mentions (AI share of voice), ai_answers (what AI says
-# about it), link_gap (sites linking to competitors, not it) and site_health. Kept, so movement shows between pulls.
+# about it), ai_topics (what AI cites for its searches), ai_history,
+# content_ideas, link_gap (sites linking to competitors, not it) and
+# site_health; and per site rank_history (a year of visibility),
+# relevant_pages (its best pages), gbp_qa and gbp_posts (its Business
+# Profile's questions and posts), trustpilot and tripadvisor. Kept, so movement shows between pulls.
 class Market::SearchSnapshot < ApplicationRecord
   KINDS = %w[overview keywords competitors backlinks ai_overview business_profile web_mentions
-    serp_competitors keyword_facts ai_mentions ai_answers site_health reviews backlink_history link_gap].freeze
+    serp_competitors keyword_facts ai_mentions ai_answers site_health reviews backlink_history link_gap
+    content_ideas ai_topics ai_history rank_history relevant_pages gbp_qa gbp_posts trustpilot tripadvisor].freeze
   FRESH_FOR = 20.hours
 
   belongs_to :competitor, optional: true

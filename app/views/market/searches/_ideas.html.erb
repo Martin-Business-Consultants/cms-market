@@ -1,0 +1,37 @@
+<%# locals: (data:, can_write:) %>
+<%# Searches around the tracked ones worth writing about (DataForSEO Labs keyword ideas): what people search, how often, how hard it is, whether it's a question, and when it peaks, so it's written before then. Each can be tracked, or put on the content calendar. %>
+<% ideas = Array(data.market("content_ideas")&.data&.dig("ideas")) %>
+<% calendar = Cms::Plugins.enabled?(:calendar) && respond_to?(:calendar_items_path) %>
+<% if ideas.any? %>
+  <section class="panel panel--padded stack stack--sm" id="ideas">
+    <div class="row row--between">
+      <h2 class="heading">Worth writing about <%= market_source :estimate %></h2>
+      <span class="text-small text-muted">Searches around the tracked ones; easiest and biggest first</span>
+    </div>
+    <p class="text-small text-muted">A post or page that answers one of these well can rank for it. Questions make good posts and FAQs; those that peak are best published a couple of months before.</p>
+    <% tracked = data.keywords.map(&:keyword) %>
+    <table class="data-table market-evidence-table">
+      <thead><tr><th>Search</th><th class="data-table__num">A month</th><th class="data-table__num">Difficulty</th><th>Peaks</th><th></th></tr></thead>
+      <tbody>
+        <% ideas.sort_by { [it["difficulty"].to_i > 40 ? 1 : 0, -it["volume"].to_i] }.first(15).each do |idea| %>
+          <%# herb:key idea["keyword"] %>
+          <tr>
+            <td><%= idea["keyword"] %><% if idea["question"] %> <span class="badge">Question</span><% end %><div class="text-small text-muted"><%= idea["intent"]&.capitalize %></div></td>
+            <td class="data-table__num"><%= number_with_delimiter idea["volume"] %></td>
+            <td class="data-table__num"><%= idea["difficulty"] || "—" %></td>
+            <td class="text-small"><%= idea["peak"] ? "#{Market::Seasons.month_name(idea["peak"]["month"])} (+#{idea["peak"]["lift"]}%) · publish by #{Market::Seasons.publish_by(idea["peak"])}" : "—" %></td>
+            <td class="nowrap">
+              <% if can_write && !tracked.include?(idea["keyword"]) %>
+                <%= button_to "Track", market_keywords_path, params: {keyword: {keywords: idea["keyword"], source: "plan"}, return_to: market_search_path(anchor: "ideas")}, class: "btn btn--sm btn--plain", form_class: "contents" %>
+              <% end %>
+              <% if calendar && Current.user.can?("calendar:write") %>
+                <%= button_to "Calendar", calendar_ideas_path, params: {source: "market:idea:#{idea["keyword"].parameterize}", return_to: market_search_path(anchor: "ideas")}, class: "btn btn--sm btn--plain", form_class: "contents",
+                      title: "Put it on the content calendar" %>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </section>
+<% end %>

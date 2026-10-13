@@ -4,6 +4,32 @@ A plugin for the CMS (see `docs/plugins.md` in [Libre Publish](https://github.co
 
 The big picture behind the site's SEO and marketing, beside the site it's about.
 
+## How it fits together
+
+**Goals → Search → Findings → Plan → Do next.** Set what the marketing is for; Market measures where
+the business stands; findings say what that means; the plan turns it into opportunities aimed at the
+goals; the Overview hands you the next few things to do, one at a time.
+
+- **Overview**: the goals and how each is going, **Do next** (the few things most worth doing now: goals
+  falling behind, the worst findings, and the plan's opportunities, those serving a goal and this
+  month's first) beside the one open, where it's acted on, the steps left to get set up, and what
+  competitors changed.
+- **Plan**: the goals (set, change, remove), the big picture and the angle to win on, and the
+  opportunities grouped by the goal they serve. Each opens beside the list: work it out with the AI, put
+  it on the [content calendar](https://github.com/Martin-Business-Consultants/cms-calendar), start a draft
+  page, mark it done.
+- **Findings**: what the data means, with the figures and where they're from.
+- **Search**: where the business stands, in five tabs. **Searches** (the tracked searches on Google, Maps
+  and each AI, what each is worth, and the searches worth writing about), **AI**, **Local** (the Maps grid),
+  **Website** (visibility and its year of history, links, the site's health) and **Reputation** (reviews,
+  Business Profiles, Trustpilot and Tripadvisor).
+- **Competitors**: each one's website, search side (visits by month, best pages, profile, posts, reviews)
+  and next steps. **Report**: the goals and the market's health over time.
+
+**Goals** are measured from what Market already has: calls, enquiries and clicks (with the Google plugin),
+visits from search, a search's place on Google or share of the Maps top 3, the share of AI answers naming
+the business, reviews and rating. Each keeps where it started, and says whether it's on pace for its date.
+
 - **Get started** with a short intake: the business's name, website and ZIP, and a line on what it
   does. The AI plugin then reads the website (the home page and its about, services and locations
   pages) and what's in the CMS (its pages and the brand brief). From those it fills in the rest of
@@ -33,19 +59,34 @@ The big picture behind the site's SEO and marketing, beside the site it's about.
   - **with retries:** what may pass (timeouts, rate limits, "try again") is tried again with backoff;
   - **stopping safely:** a wrong login, an empty account or a spent budget stops a pull and keeps what
     it got;
-  - **without buying twice:** a part pulled in the last day isn't paid for again;
+  - **without buying twice:** a part pulled in the last day isn't paid for again (history and AI
+    history: in the last 25 days);
+  - **saving money** (on by default, Settings › Market): the checks that can wait (Google's results for
+    each tracked search, every Maps point, AI Mode, ChatGPT, Gemini and Bing Copilot) go through
+    DataForSEO's Standard queue, about a third of the Live price, in batches; they arrive within minutes
+    and Search says how many are on their way;
   - **when you choose:** when someone asks, or every week or month.
 - **AI search**, as part of Search: each tracked search is asked, on every pull, of **Google's AI Overview**
   (with the results page) and **AI Mode**, **ChatGPT** and **Gemini** (their real search answers, through
-  DataForSEO's LLM Scraper), and **Perplexity** and **Claude** (asked with web search on, through LLM
+  DataForSEO's LLM Scraper), **Bing Copilot** (Bing's AI answer), and **Perplexity** and **Claude** (asked with web search on, through LLM
   Responses). For each: whether it answered, named the business (and its place among the businesses Market
   knows), cited its site, who it named instead and what it cited. Beside them, the **AI share of voice**
   (how often real ChatGPT and Google AI answers mention the site and each competitor, from DataForSEO's
   LLM Mentions database), what those answers say about the site, the searches Google's AI Overviews cite
   each site for (Labs), and AI search volume beside Google's for each tracked search. Findings flag searches
   the AIs answer without the business, competitors they name more, the sites they lean on, and a share of
-  voice far behind; the AI's suggestions are written to get the business named. Settings › Market chooses
-  which AIs to ask.
+  voice far behind; the AI's suggestions are written to get the business named. **What AI cites for the
+  topic**: the sites and pages AI answers mention most for the tracked searches, and the site's mentions
+  month by month. Settings › Market chooses which AIs to ask.
+- **What to write, and when**: searches around the tracked ones worth writing about (volume, difficulty,
+  intent, whether it's a question), and **seasonality**: the month each search peaks, so a post goes out two
+  months before. A finding flags searches coming into season; each idea is a click from tracking or from the
+  content calendar, which suggests the date.
+- **A year of history**: each site's estimated visits and keywords month by month (the report backfills its
+  chart with it), and each competitor's **best pages**, the ones that bring them the most search traffic.
+- **Business Profiles, beyond the listing**: customers' questions (and which are unanswered), each
+  business's posts and how often it posts; findings flag unanswered questions and a competitor posting more.
+- **Other review sites** (Also pull, off by default): Trustpilot and Tripadvisor reviews beside Google's.
 - **Every figure says where it's from** on Search: Google Search Console (real), Google checked live, AI
   answers checked live, the AI answers database, DataForSEO Labs estimates, Google Maps, Business
   Profiles, the site check, web mentions.
@@ -65,7 +106,7 @@ The big picture behind the site's SEO and marketing, beside the site it's about.
   the report, and the sites linking to competitors but not to the site: the places to get a link.
 - **Local search** works from a ZIP (or postcode) and a radius in miles (Market › Profile), not the whole
   country. On every pull, each tracked search is checked on Google Maps from a grid of points across the
-  area (3×3, 5×5 or 7×7). **Maps** lists the searches beside the open one: its grid laid on a map of the area (OpenStreetMap), with the business's
+  area (3×3, 5×5 or 7×7). **Search › Local** lists the searches beside the open one: its grid laid on a map of the area (OpenStreetMap), with the business's
   map position at every point (green for the top 3, amber for 4 to 10, red for further or not found; choose
   a point for who's shown there), the average position, the share of points in the top 3, who leads the
   area with their rating and reviews (watch them in one click), next steps (close the review gap, win the
@@ -110,7 +151,9 @@ The big picture behind the site's SEO and marketing, beside the site it's about.
 
 Everything is at `/api/market/…`, listed in `/api/manifest`, so the `cms` CLI reaches it:
 
-    cms get /api/market                                         # at a glance: profile, findings by severity, best opportunities, changes
+    cms get /api/market                                         # at a glance: goals, do_next, setup, findings by severity, best opportunities, changes
+    cms get /api/market/goals                                   # the goals with progress and pace, and the metrics there are
+    cms post /api/market/goals '{"goal":{"metric":"calls","target":40,"due_on":"2027-01-31"}}'
     cms get "/api/market/findings?since=2026-10-13T09:00:00Z"   # only what appeared, changed, resolved or was dismissed since
     cms get /api/market/findings                                # keep its as_of; pass it as since next time
     cms get "/api/market/search?keywords=200"                   # visibility, keywords, tracked searches with the page that ranks

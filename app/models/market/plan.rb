@@ -92,8 +92,9 @@ class Market::Plan < ApplicationRecord
       keywords_to_track: {type: "array", description: "Up to 15 searches its customers make that are worth winning and watching, as they'd type them, with the place where it matters (\"emergency dentist grand rapids\"). Not ones already tracked.",
                           items: {type: "string"}},
       opportunities: {type: "array", items: {
-        type: "object", additionalProperties: false, required: %w[channel title detail evidence impact effort horizon],
+        type: "object", additionalProperties: false, required: %w[goal channel title detail evidence impact effort horizon],
         properties: {
+          goal: {type: "string", description: "The id of the goal it serves (\"3\"), or \"\" when none of them."},
           channel: {type: "string", enum: Market::Opportunity::CHANNELS.keys},
           title: {type: "string", description: "What to do, as a short instruction (\"Publish a page for each town served\")."},
           detail: {type: "string", description: "How, in two or three sentences someone could start from."},
@@ -114,6 +115,7 @@ class Market::Plan < ApplicationRecord
       You are a senior marketing strategist planning a business's SEO and marketing for the year. You are given its market profile, what's on its website (the pages and posts in its CMS, and a reading of the live site), readings of its competitors' websites taken from outside (pages and posts in their sitemaps, how recently they changed, the tools on their home pages: ad tags, analytics, call tracking, chat, reviews, booking; structured data, social profiles), how each competes, search data from DataForSEO when it's been pulled (visibility, estimated traffic, keywords, where everyone ranks for the searches tracked), findings already worked out from all of it, and the work already planned, done or dismissed.
 
       Give the big picture, then the opportunities that would win this market, best first.
+      - Aim at the goals: each opportunity serves one where it can (say which), those behind pace first. A goal with nothing serving it gets something.
       - Act on the findings first: they are exact. Ground every opportunity in the facts and say which in evidence. Compare: where competitors are ahead (more location or service pages, regular posts, ads running, reviews shown, booking online), copy what works and beat it; where they're weak, take the ground.
       - Cover the channels that matter for this business, not all of them. Pages and posts it should publish are the most direct: the site is right here.
       - Mix quick wins (now) with the bigger moves (next, later). At most #{MAX_OPPORTUNITIES}; don't repeat anything already planned, done or dismissed.
@@ -146,6 +148,7 @@ class Market::Plan < ApplicationRecord
 
   def add_opportunities(answers)
     existing = Market::Opportunity.pluck(:title).map(&:downcase)
+    goals = Market::Goal.active.pluck(:id).map(&:to_s)
     answers.first(MAX_OPPORTUNITIES).each do |answer|
       title = answer["title"].to_s.strip
       next if title.empty? || existing.include?(title.downcase)
@@ -154,7 +157,8 @@ class Market::Plan < ApplicationRecord
         channel: answer["channel"].presence_in(Market::Opportunity::CHANNELS.keys) || "seo",
         impact: answer["impact"].presence_in(Market::Opportunity::IMPACTS) || "medium",
         effort: answer["effort"].presence_in(Market::Opportunity::EFFORTS) || "medium",
-        horizon: answer["horizon"].presence_in(Market::Opportunity::HORIZONS.keys) || "next")
+        horizon: answer["horizon"].presence_in(Market::Opportunity::HORIZONS.keys) || "next",
+        goal_id: answer["goal"].to_s[/\d+/].presence_in(goals))
       existing << title.downcase
     end
   end

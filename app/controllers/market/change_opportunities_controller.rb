@@ -8,7 +8,7 @@ module Market
     def create
       reading = Reading.where.not(competitor_id: nil).find(params[:change_id])
       opportunity = reading.to_opportunity
-      redirect_to back_or(market_overview_path(tab: "changes", item: reading.id)), notice: "On the plan: “#{opportunity.title}”"
+      redirect_to back_or(market_plan_path(item: opportunity.id)), notice: "On the plan: “#{opportunity.title}”"
     end
   end
 end

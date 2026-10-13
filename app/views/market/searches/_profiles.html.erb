@@ -1,0 +1,51 @@
+<%# locals: (data:) %>
+<%# Each Google Business Profile side by side, as customers see it, with how often each posts and the questions its customers ask. %>
+<% profiles = data.sites.select(&:business_profile) %>
+<% if profiles.any? %>
+  <section class="panel panel--padded stack stack--sm" id="profiles">
+    <div class="row row--between">
+      <h2 class="heading">Business Profiles <%= market_source :business %></h2>
+      <span class="text-small text-muted">What customers see on Google, side by side</span>
+    </div>
+    <div class="panel--scroll">
+      <table class="data-table market-compare">
+        <thead><tr><th>Business</th><th class="data-table__num">Rating</th><th class="data-table__num">Reviews</th><th class="data-table__num">Photos</th><th>Claimed</th><th>Hours</th><th>Description</th><th class="data-table__num" title="Posts on the profile in the last 90 days">Posts</th><th class="data-table__num" title="Customers' questions on the profile with no answer">Unanswered</th></tr></thead>
+        <tbody>
+          <% profiles.each do |site| %>
+            <%# herb:key site.domain %>
+            <% profile = site.business_profile.data %>
+            <tr class="<%= class_names("market-compare__own": site.own?) %>">
+              <td><strong><%= site.name %></strong><div class="text-small text-muted"><%= profile["category"] %></div></td>
+              <td class="data-table__num"><%= profile["rating"] ? "#{profile["rating"]}★" : "—" %></td>
+              <td class="data-table__num"><%= number_with_delimiter profile["reviews"].to_i %></td>
+              <td class="data-table__num"><%= number_with_delimiter profile["photos"].to_i %></td>
+              <td><%= profile["claimed"] ? "Yes" : tag.span("No", class: "market-down") %></td>
+              <td><%= profile["hours"] ? "Yes" : tag.span("No", class: "market-down") %></td>
+              <td><%= profile["description"] ? "Yes" : tag.span("No", class: "market-down") %></td>
+              <td class="data-table__num"><%= site.gbp_posts ? site.gbp_posts.data["last_90_days"].to_i : "—" %></td>
+              <td class="data-table__num"><%= site.gbp_qa ? tag.span(site.gbp_qa.data["unanswered"].to_i, class: (site.own? && site.gbp_qa.data["unanswered"].to_i.positive?) ? "market-down" : nil) : "—" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    <% own_qa = profiles.find(&:own?)&.gbp_qa&.data %>
+    <% waiting = Array(own_qa&.dig("questions")).select { it["answers"].zero? } %>
+    <% if waiting.any? %>
+      <div class="stack stack--xs">
+        <h3 class="label">Customers' questions on the profile, unanswered</h3>
+        <ul class="market-changes text-small">
+          <% waiting.first(6).each_with_index do |question, index| %>
+            <%# herb:key index %>
+            <li><%= question["question"] %></li>
+          <% end %>
+        </ul>
+        <p class="text-small text-muted">Answer them on the profile (business.google.com): the next customer reads them, and AI answers use them.</p>
+      </div>
+    <% end %>
+    <% posting = profiles.reject(&:own?).filter_map { |site| [site.name, site.gbp_posts.data["last_90_days"].to_i] if site.gbp_posts }.select { it[1].positive? } %>
+    <% if posting.any? %>
+      <p class="text-small text-muted">Competitors posting on Google: <%= posting.map { "#{it[0]} (#{it[1]} in 90 days)" }.join(", ") %>. Posts keep a profile fresh for Maps.</p>
+    <% end %>
+  </section>
+<% end %>

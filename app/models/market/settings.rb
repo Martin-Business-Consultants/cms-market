@@ -9,18 +9,21 @@ class Market::Settings
   KEY = "market"
   REFRESH = {"off" => "Only when someone asks", "monthly" => "Every month", "weekly" => "Every week"}.freeze
   REFRESH_EVERY = {"monthly" => 1.month, "weekly" => 1.week}.freeze
-  # What a pull gathers beyond each site's visibility and keywords, the tracked searches and the map.
+  # What a pull gathers beyond each site's visibility and keywords, the tracked searches and the map,
+  # in plain bundles; the older names still answer (ALIASES).
   EXTRAS = {
-    "keyword_facts" => "Keyword facts: searches a month in the business's city (Google Ads), the country and AI assistants, difficulty and intent for each tracked search",
-    "reviews" => "Google reviews: the latest 50 of the site and of each competitor, read by the AI for what customers praise and complain about (they arrive a few minutes after the pull)",
-    "ai_mentions" => "AI share of voice: how often real ChatGPT and Google AI answers mention each site, and what they cite",
-    "business_profiles" => "Business Profiles: the site's and each competitor's Google profile, as customers see it",
+    "keywords" => "What each search is worth: searches a month here, in the country and in AI assistants; difficulty, intent and when it peaks; who wins it; and searches worth writing about around it",
+    "ai_visibility" => "AI visibility: how often real ChatGPT and Google AI answers mention each site, what they say about it, and the sites they cite for its searches",
+    "profiles" => "Business Profiles: each one as customers see it, its Google reviews (read for praise and complaints), its posts and its customers' questions",
+    "history" => "A year of history and best pages: each site's visibility month by month, and the pages that bring it the most visits",
     "site_health" => "Site health: the home page as Google renders it, and Lighthouse on a phone",
-    "web_mentions" => "Web mentions: the web talking about each business by name, and how warmly"
+    "web_mentions" => "Web mentions: the web talking about each business by name, and how warmly",
+    "other_reviews" => "Trustpilot and Tripadvisor reviews too, for businesses customers review there"
   }.freeze
+  ALIASES = {"keyword_facts" => "keywords", "ai_mentions" => "ai_visibility", "business_profiles" => "profiles", "reviews" => "profiles"}.freeze
   DEFAULTS = {"monthly_budget_cents" => 2500, "country" => "United States", "language_code" => "en", "refresh" => "off",
               "keyword_limit" => 200, "backlinks" => false, "sandbox" => false,
-              "ai_platforms" => %w[google_ai_overview google_ai_mode chat_gpt gemini perplexity claude], "extras" => EXTRAS.keys}.freeze
+              "ai_platforms" => %w[google_ai_overview google_ai_mode chat_gpt gemini perplexity claude], "extras" => EXTRAS.keys - %w[other_reviews], "queue" => true}.freeze
   # Backlinks (Settings › Market › Backlinks too) brings each site's links month by month, and the sites linking to competitors but not the site.
 
   def self.current = new(Setting.get(KEY))
@@ -49,8 +52,11 @@ class Market::Settings
   # The AIs each tracked search is asked of, on every pull.
   def ai_platforms = Array(@data["ai_platforms"]) & Market::AiCheck::PLATFORMS.keys
   def ai_platform?(platform) = ai_platforms.include?(platform.to_s)
-  def extras = Array(@data["extras"]) & EXTRAS.keys
-  def extra?(name) = extras.include?(name.to_s)
+  def extras = Array(@data["extras"]).map { ALIASES.fetch(it, it) }.uniq & EXTRAS.keys
+  def extra?(name) = extras.include?(ALIASES.fetch(name.to_s, name.to_s))
+
+  # Queue the checks that can wait (DataForSEO's Standard queue: about a third of the price; they arrive within minutes).
+  def queue? = @data["queue"] != false
 
   def balance = @data["balance"]&.to_d
   def checked_at = @data["checked_at"].presence&.then { Time.zone.parse(it) }
@@ -84,7 +90,8 @@ class Market::Settings
       "backlinks" => ->(value) { boolean.cast(value) || false },
       "sandbox" => ->(value) { boolean.cast(value) || false },
       "ai_platforms" => ->(value) { Array(value) & Market::AiCheck::PLATFORMS.keys },
-      "extras" => ->(value) { Array(value) & EXTRAS.keys }
+      "extras" => ->(value) { Array(value).map { ALIASES.fetch(it, it) }.uniq & EXTRAS.keys },
+      "queue" => ->(value) { boolean.cast(value) != false }
     }
     data = readers.filter_map { |name, read| [name, read.call(params[name])] if params.key?(name) }.to_h
     data["monthly_budget_cents"] = data.delete("monthly_budget_dollars") if data.key?("monthly_budget_dollars")
@@ -103,7 +110,7 @@ class Market::Settings
     {dataforseo: {connected: search_connected?, login: dataforseo_login, balance: balance&.to_f, checked_at: checked_at, last_error: last_error},
      budget: {monthly: budget.to_f, spent_this_month: spent_this_month.to_f, remaining: remaining_budget.to_f},
      country: country, language_code: language_code, refresh: refresh, keyword_limit: keyword_limit, backlinks: backlinks?, sandbox: sandbox?,
-     ai_platforms: ai_platforms, extras: extras,
+     ai_platforms: ai_platforms, extras: extras, queue: queue?,
      ai: {available: ai?, unavailable_reason: (Market::Plan.ai_unavailable_reason unless ai?)}}
   end
 end

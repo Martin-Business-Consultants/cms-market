@@ -17,7 +17,7 @@
   <% if can_write %>
     <div class="cluster cluster--sm">
       <% if opportunity %>
-        <%= link_to market_plan_path(anchor: "opportunity_#{opportunity.id}"), class: "btn btn--sm", data: {turbo_frame: "_top"} do %>
+        <%= link_to market_plan_path(item: opportunity.id), class: "btn btn--sm", data: {turbo_frame: "_top"} do %>
           <%= icon_tag "check-circle" %> <span>On the plan: <%= opportunity.state %></span>
         <% end %>
       <% elsif finding.state == "open" then %>
@@ -46,7 +46,7 @@
       <% elsif place == :local then %>
         <%= link_to "Maps", market_maps_path, class: "btn btn--sm", data: {turbo_frame: "_top"} %>
       <% elsif place == :ai then %>
-        <%= link_to "AI search", market_search_path(anchor: "ai"), class: "btn btn--sm", data: {turbo_frame: "_top"} %>
+        <%= link_to "AI search", market_search_path(tab: "ai"), class: "btn btn--sm", data: {turbo_frame: "_top"} %>
       <% elsif place == :page then %>
         <%= link_to "Edit the page", edit_page_path(record.path), class: "btn btn--sm", data: {turbo_frame: "_top"} %>
       <% elsif place == :google then %>
@@ -56,7 +56,7 @@
       <% elsif place == :competitors then %>
         <%= link_to "Competitors", market_competitors_path, class: "btn btn--sm", data: {turbo_frame: "_top"} %>
       <% else %>
-        <%= link_to "Search", market_search_path, class: "btn btn--sm", data: {turbo_frame: "_top"} %>
+        <%= link_to "Search", market_search_path(tab: (record if record.is_a?(String))), class: "btn btn--sm", data: {turbo_frame: "_top"} %>
       <% end %>
       <% if finding.state == "open" %>
         <%= button_to "Dismiss", market_finding_path(finding), method: :patch, params: {finding: {state: "dismissed"}, return_to: back}, class: "btn btn--sm btn--plain", form_class: "contents" %>

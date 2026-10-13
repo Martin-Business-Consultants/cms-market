@@ -52,4 +52,12 @@
       </table>
     </div>
   <% end %>
+  <% history = data.sites.select(&:rank_history) %>
+  <% if history.any? %>
+    <div class="stack stack--xs">
+      <h3 class="label">Visits from search, the past year (estimated)</h3>
+      <%= market_line_chart history.map { |site| Market::Report::Series.new(name: site.name, own: site.own?, points: Array(site.rank_history.data["months"]).map { [Date.parse("#{it["month"]}-01").to_time, it["traffic"].to_f] }) },
+            label: "Estimated visits from search by month" %>
+    </div>
+  <% end %>
 </section>

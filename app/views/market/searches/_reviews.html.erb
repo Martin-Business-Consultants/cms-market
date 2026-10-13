@@ -1,7 +1,8 @@
 <%# locals: (data:) %>
 <%# Google reviews, the site's and each competitor's latest (from DataForSEO's queue): the rating, how many came lately, how many the owner answered, and what customers praise and complain about, read by the AI; the site's unanswered ones to answer. %>
 <% sites = data.sites.select(&:reviews) %>
-<% if sites.any? || data.reviews_waiting? %>
+<% elsewhere = data.sites.flat_map { |site| [["Trustpilot", site.trustpilot], ["Tripadvisor", site.tripadvisor]].filter_map { |source, snapshot| [site, source, snapshot.data] if snapshot && snapshot.data["count"].to_i.positive? } } %>
+<% if sites.any? || elsewhere.any? || data.reviews_waiting? %>
   <section class="panel panel--padded stack stack--sm" id="reviews">
     <div class="row row--between">
       <h2 class="heading">Reviews <%= market_source :reviews %></h2>
@@ -51,6 +52,26 @@
           </ul>
         </div>
       <% end %>
+    <% end %>
+    <% if elsewhere.any? %>
+      <div class="stack stack--xs">
+        <h3 class="label">Elsewhere</h3>
+        <table class="data-table market-evidence-table">
+          <thead><tr><th>Business</th><th>Site</th><th class="data-table__num">Rating</th><th class="data-table__num">Reviews</th><th class="data-table__num">Answered</th></tr></thead>
+          <tbody>
+            <% elsewhere.each do |site, source, reviews| %>
+              <%# herb:key "#{site.domain}-#{source}" %>
+              <% list = Array(reviews["reviews"]) %>
+              <tr class="<%= class_names("market-compare__own": site.own?) %>">
+                <td><strong><%= site.name %></strong></td><td><%= source %></td>
+                <td class="data-table__num"><%= reviews["rating"] ? "#{reviews["rating"]}★" : "—" %></td>
+                <td class="data-table__num"><%= number_with_delimiter reviews["count"].to_i %></td>
+                <td class="data-table__num"><%= list.any? ? "#{(list.count { it["answered"] } * 100.0 / list.size).round}%" : "—" %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
     <% end %>
   </section>
 <% end %>

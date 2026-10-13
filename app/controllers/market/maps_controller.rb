@@ -10,6 +10,7 @@ module Market
     def show
       @profile = Profile.current
       @settings = Settings.current
+      @data = Search::Overview.new
       @keywords = Keyword.ordered.to_a
       @scans = LocalScan.latest_for(@keywords)
       @keyword = @keywords.find { it.id == params[:keyword].to_i } || @keywords.find { @scans[it.id] } || @keywords.first

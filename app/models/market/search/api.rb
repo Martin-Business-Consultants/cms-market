@@ -14,7 +14,11 @@ module Market
       CEILINGS = {overview: 0.05, keywords: 0.25, competitors: 0.10, backlinks: 0.10, ranking: 0.02, maps: 0.02,
                   ai_overview: 0.05, ai_mode: 0.01, llm_scraper: 0.01, llm_response: 0.08, ai_mentions: 0.25, ai_answers: 0.15,
                   keyword_facts: 0.15, ai_volume: 0.05, serp_competitors: 0.05, business_profile: 0.01, site_health: 0.02, web_mentions: 0.05,
-                  reviews: 0.01, backlink_history: 0.05, link_gap: 0.07, local_volume: 0.1}.freeze
+                  reviews: 0.01, backlink_history: 0.05, link_gap: 0.07, local_volume: 0.1,
+                  content_ideas: 0.03, ai_topics: 0.25, ai_history: 0.12, rank_history: 0.15, relevant_pages: 0.02, gbp_qa: 0.01}.freeze
+      # What a queued (Standard) check costs at most, for the budget: about a third of Live.
+      QUEUED = {"reviews" => 0.01, "ranking" => 0.0015, "maps_point" => 0.0008, "ai_mode" => 0.0015, "llm_scraper" => 0.0015, "bing" => 0.0008,
+                "gbp_posts" => 0.004, "trustpilot" => 0.003, "tripadvisor" => 0.005}.freeze
       REVIEWS = 50
       COUNTRY_CODES = {"United States" => "US", "United Kingdom" => "GB", "Canada" => "CA", "Australia" => "AU", "Ireland" => "IE", "New Zealand" => "NZ",
                        "Germany" => "DE", "France" => "FR", "Spain" => "ES", "Italy" => "IT", "Netherlands" => "NL", "Mexico" => "MX", "Brazil" => "BR",
@@ -80,11 +84,18 @@ module Market
       # in the organic results, what else is on the page, the map pack, the questions people also
       # ask, and the AI Overview with the sources it cites (loaded when Google loads it later).
       def ranking(keyword, location:, ai_overview: false)
+        ranking_from(@client.post("serp/google/organic/live/advanced", ranking_task(keyword, location: location, ai_overview: ai_overview), target: keyword,
+          ceiling: CEILINGS[:ranking] + (ai_overview ? 0.005 : 0)).first || {})
+      end
+
+      def ranking_task(keyword, location:, ai_overview: false)
         task = {keyword: keyword, **where(location, radius: true), language_code: @setting.language_code, depth: RANKING_DEPTH}
         task[:load_async_ai_overview] = true if ai_overview
-        result = @client.post("serp/google/organic/live/advanced", task, target: keyword, ceiling: CEILINGS[:ranking] + (ai_overview ? 0.005 : 0)).first || {}
+        task
+      end
+
+      def ranking_from(result)
         items = Array(result["items"])
-        overview = items.find { it["type"] == "ai_overview" }
         {"results" => items.select { it["type"] == "organic" }.map do |item|
             {"position" => item["rank_group"], "domain" => Market::Probe.normalize(item["domain"]), "url" => item["url"], "title" => item["title"].to_s.truncate(120)}
           end,
@@ -94,14 +105,27 @@ module Market
              "reviews" => item.dig("rating", "votes_count"), "cid" => item["cid"]}.compact
           end,
           "questions" => items.select { it["type"] == "people_also_ask" }.flat_map { Array(it["items"]).map { |question| question["title"] } }.compact_blank.first(8),
-          "ai_overview" => overview && {"text" => overview["markdown"].presence || Array(overview["items"]).map { it["markdown"] || it["text"] }.compact.join("\n\n"),
-                                        "sources" => Array(overview["references"]).map { {"domain" => it["domain"], "url" => it["url"], "title" => it["title"]} }}}
+          "ai_overview" => overview_from(items.find { it["type"] == "ai_overview" })}
+      end
+
+      # An AI Overview (Google's or Bing's Copilot answer) as text and the sources it cites.
+      def overview_from(element, references: nil)
+        return unless element
+
+        {"text" => element["markdown"].presence || Array(element["items"]).map { it["markdown"] || it["text"] }.compact.join("\n\n"),
+         "sources" => Array(element["references"] || references).map { {"domain" => it["domain"], "url" => it["url"], "title" => it["title"]} }}
       end
 
       # Google Maps' results for one search from one point: who's where, with their rating and Google's ids.
       def maps(keyword, lat:, lng:, zoom:)
-        task = {keyword: keyword, location_coordinate: "#{lat},#{lng},#{zoom}z", language_code: @setting.language_code, depth: Market::LocalScan::DEPTH}
-        result = @client.post("serp/google/maps/live/advanced", task, target: keyword, ceiling: CEILINGS[:maps]).first || {}
+        maps_from(@client.post("serp/google/maps/live/advanced", maps_task(keyword, lat: lat, lng: lng, zoom: zoom), target: keyword, ceiling: CEILINGS[:maps]).first || {})
+      end
+
+      def maps_task(keyword, lat:, lng:, zoom:)
+        {keyword: keyword, location_coordinate: "#{lat},#{lng},#{zoom}z", language_code: @setting.language_code, depth: Market::LocalScan::DEPTH}
+      end
+
+      def maps_from(result)
         Array(result["items"]).select { it["type"] == "maps_search" }.map do |item|
           {"position" => item["rank_group"], "title" => item["title"].to_s.truncate(120), "domain" => Market::Probe.normalize(item["domain"]),
            "rating" => item.dig("rating", "value"), "reviews" => item.dig("rating", "votes_count"), "category" => item["category"], "cid" => item["cid"]}.compact
@@ -112,20 +136,36 @@ module Market
 
       # Google's AI Mode answer to a search, with the sources it cites.
       def ai_mode(keyword, location:)
-        where = location.is_a?(Array) ? {location_coordinate: "#{location[0]},#{location[1]},11z"} : {location_name: location}
-        task = {keyword: keyword, **where, language_code: @setting.language_code}
-        result = @client.post("serp/google/ai_mode/live/advanced", task, target: keyword, ceiling: CEILINGS[:ai_mode]).first || {}
-        element = Array(result["items"]).find { it["type"].to_s.start_with?("ai_overview") } || {}
-        {"text" => element["markdown"].presence || Array(element["items"]).map { it["markdown"] || it["text"] }.compact.join("\n\n"),
-         "sources" => Array(element["references"] || result["references"]).map { {"domain" => it["domain"], "url" => it["url"], "title" => it["title"]} }}
+        ai_mode_from(@client.post("serp/google/ai_mode/live/advanced", ai_mode_task(keyword, location: location), target: keyword, ceiling: CEILINGS[:ai_mode]).first || {})
       end
+
+      def ai_mode_task(keyword, location:)
+        where = location.is_a?(Array) ? {location_coordinate: "#{location[0]},#{location[1]},11z"} : {location_name: location}
+        {keyword: keyword, **where, language_code: @setting.language_code}
+      end
+
+      def ai_mode_from(result)
+        overview_from(Array(result["items"]).find { it["type"].to_s.start_with?("ai_overview") } || {}, references: result["references"])
+      end
+
+      # Bing's Copilot answer at the top of its results (an ai_overview item), with the sources it cites.
+      def bing(keyword) = bing_from(@client.post("serp/bing/organic/live/advanced", bing_task(keyword), target: keyword, ceiling: CEILINGS[:ranking]).first || {})
+      def bing_task(keyword) = {keyword: keyword, location_name: @setting.country, language_code: @setting.language_code, depth: 10}
+      def bing_from(result) = overview_from(Array(result["items"]).find { it["type"] == "ai_overview" }) || {"text" => "", "sources" => []}
 
       # ChatGPT's or Gemini's real search answer (the LLM Scraper): its text, the sources it cites,
       # and the businesses it shows as cards (ChatGPT's local businesses and brands).
       def llm_scraper(platform, keyword)
+        llm_scraper_from(@client.post("ai_optimization/#{platform}/llm_scraper/live/advanced", llm_scraper_task(platform, keyword), target: keyword, ceiling: CEILINGS[:llm_scraper]).first || {})
+      end
+
+      def llm_scraper_task(platform, keyword)
         task = {keyword: keyword, location_name: @setting.country, language_code: @setting.language_code}
         task[:force_web_search] = true if platform == "chat_gpt"
-        result = @client.post("ai_optimization/#{platform}/llm_scraper/live/advanced", task, target: keyword, ceiling: CEILINGS[:llm_scraper]).first || {}
+        task
+      end
+
+      def llm_scraper_from(result)
         items = Array(result["items"])
         businesses = items.select { it["type"] == "chat_gpt_local_businesses" }.flat_map { Array(it["items"]) }
           .map { {"title" => it["title"], "domain" => it["domain"], "url" => it["url"], "rating" => it.dig("rating", "value"), "reviews" => it.dig("rating", "votes_count")} } +
@@ -198,7 +238,8 @@ module Market
           info = item["keyword_info"] || {}
           [item["keyword"], {"volume" => info["search_volume"].to_i, "cpc" => info["cpc"]&.to_f&.round(2), "competition" => info["competition_level"],
                              "difficulty" => item.dig("keyword_properties", "keyword_difficulty"), "intent" => item.dig("search_intent_info", "main_intent"),
-                             "trend" => info.dig("search_volume_trend", "yearly")}.compact]
+                             "trend" => info.dig("search_volume_trend", "yearly"),
+                             "months" => Array(info["monthly_searches"]).to_h { ["#{it["year"]}-#{it["month"].to_s.rjust(2, "0")}", it["search_volume"].to_i] }.presence}.compact]
         end
       end
 
@@ -258,20 +299,22 @@ module Market
          "issues" => checks.first(20), "lcp_ms" => item.dig("page_timing", "largest_contentful_paint")&.round, "lighthouse" => scores}.compact
       end
 
-      # Google reviews (only queued, Standard method): sets the task for a business by its Maps id,
-      # the newest first; its result comes with #queued_result. The site's own as Extended Reviews,
-      # which also carries the other sites' reviews Google shows (Yelp, Facebook…).
-      def post_reviews(cid, extended: false)
-        endpoint = extended ? "business_data/google/extended_reviews" : "business_data/google/reviews"
-        task = {cid: cid.to_s, location_name: @setting.country, language_code: @setting.language_code, depth: REVIEWS, sort_by: "newest"}
-        [@client.post_task("#{endpoint}/task_post", task, target: "cid:#{cid}", ceiling: CEILINGS[:reviews]), "#{endpoint}/task_get"]
-      end
+      # Google reviews (only queued): the newest of a business, by its Maps id. The site's are asked for as
+      # Extended Reviews, which also carry the other sites' reviews Google shows (Yelp, Facebook…).
+      def post_reviews_task(cid) = {cid: cid.to_s, location_name: @setting.country, language_code: @setting.language_code, depth: REVIEWS, sort_by: "newest"}
 
-      # A queued task's result, by its kind; NotReady until DataForSEO has done it.
+      # A queued task's result, read for its kind; NotReady until DataForSEO has done it.
       def queued_result(task)
         result = @client.task_result("#{task.endpoint}/#{task.task_id}").first || {}
         case task.kind
         when "reviews" then reviews_from(result)
+        when "ranking" then ranking_from(result)
+        when "maps_point" then maps_from(result)
+        when "ai_mode" then ai_mode_from(result) || {"text" => "", "sources" => []}
+        when "llm_scraper" then llm_scraper_from(result)
+        when "bing" then bing_from(result)
+        when "gbp_posts" then gbp_posts_from(result)
+        when "trustpilot", "tripadvisor" then other_reviews_from(result)
         end
       end
 
@@ -309,6 +352,105 @@ module Market
 
       # Google Ads' locations in a country (free): [{"location_name", "location_type", "location_code"}].
       def ads_locations(country_iso) = Array(@client.get("keywords_data/google_ads/locations/#{country_iso.downcase}"))
+
+      # Queued checks, set in batches (Standard: up to 100 a request, about a third of Live's price):
+      # `items` are {task:, keyword:, competitor:, domain:, meta:}; each becomes a Market::QueuedTask
+      # fetched when it's done. `get` is the task_get path ("…/task_get/advanced" for SERPs).
+      def queue(kind, base, items, pull:, get: "#{base}/task_get/advanced")
+        return [] if items.empty?
+
+        ids = @client.post_tasks("#{base}/task_post", items.map { it[:task] }, target: "#{items.size} #{kind}", ceiling: QUEUED.fetch(kind) * items.size)
+        items.zip(ids).filter_map do |item, id|
+          next unless id
+
+          Market::QueuedTask.create!(kind: kind, task_id: id, endpoint: get, pull: pull, keyword: item[:keyword], competitor: item[:competitor],
+            domain: item[:domain], meta: item[:meta] || {}, posted_at: Time.current)
+        end
+      end
+
+      # Searches around the tracked ones, worth writing about (Labs keyword ideas): volume, difficulty, intent, the months they peak.
+      def content_ideas(keywords)
+        task = labs_task(keywords: keywords.first(200), limit: 60, order_by: ["keyword_info.search_volume,desc"],
+          filters: [["keyword_info.search_volume", ">", 10]])
+        result = @client.post("dataforseo_labs/google/keyword_ideas/live", task, target: "#{keywords.size} keywords", ceiling: CEILINGS[:content_ideas]).first || {}
+        {"ideas" => Array(result["items"]).filter_map do |item|
+          info = item["keyword_info"] || {}
+          next if item["keyword"].blank? || keywords.include?(item["keyword"])
+
+          months = Array(info["monthly_searches"]).to_h { ["#{it["year"]}-#{it["month"].to_s.rjust(2, "0")}", it["search_volume"].to_i] }
+          {"keyword" => item["keyword"], "volume" => info["search_volume"].to_i, "difficulty" => item.dig("keyword_properties", "keyword_difficulty"),
+           "intent" => item.dig("search_intent_info", "main_intent"), "question" => item["keyword"].match?(/\A(how|what|why|when|where|which|who|can|do|does|is|are|should)\b/i),
+           "peak" => Market::Seasons.peak(months)}.compact
+        end.first(40)}
+      end
+
+      # What AI answers cite for the tracked searches (LLM Mentions, by keyword): the sites and the pages, most cited first.
+      def ai_topics(keywords)
+        target = keywords.first(10).map { {keyword: it, search_filter: "include", match_type: "partial_match"} }
+        task = {target: target, platform: "google", location_name: @setting.country, language_code: @setting.language_code, limit: 15}
+        domains = @client.post("ai_optimization/llm_mentions/top_mentioned_domains/live", task, target: "#{keywords.size} keywords", ceiling: CEILINGS[:ai_topics] / 2).first || {}
+        pages = @client.post("ai_optimization/llm_mentions/top_mentioned_pages/live", task, target: "#{keywords.size} keywords", ceiling: CEILINGS[:ai_topics] / 2).first || {}
+        {"domains" => Array(domains["items"]).map { {"domain" => it["domain"] || it["key"], "mentions" => it["mentions"].to_i} }.select { it["domain"] },
+         "pages" => Array(pages["items"]).map { {"page" => it["page"] || it["key"], "mentions" => it["mentions"].to_i} }.select { it["page"] }}
+      end
+
+      # How often AI answers have mentioned a site, month by month (LLM Mentions history, from August 2025).
+      def ai_history(domain)
+        task = {target: [{domain: domain, search_filter: "include"}], platform: "google", location_name: @setting.country, language_code: @setting.language_code,
+                date_from: [12.months.ago.to_date.beginning_of_month, Date.new(2025, 8, 1)].max.iso8601}
+        result = @client.post("ai_optimization/llm_mentions/historical/live", task, target: domain, ceiling: CEILINGS[:ai_history]).first || {}
+        {"months" => Array(result["items"]).map { {"month" => "#{it["year"]}-#{it["month"].to_s.rjust(2, "0")}", "mentions" => it.dig("metrics", "mentions").to_i} }.sort_by { it["month"] }}
+      end
+
+      # A site's visibility month by month for the past year (Labs historical rank overview): keywords and estimated visits.
+      def rank_history(domain)
+        task = labs_task(target: domain, date_from: 12.months.ago.to_date.beginning_of_month.iso8601)
+        result = @client.post("dataforseo_labs/google/historical_rank_overview/live", task, target: domain, ceiling: CEILINGS[:rank_history]).first || {}
+        {"months" => Array(result["items"]).map do |item|
+          organic = item.dig("metrics", "organic") || {}
+          {"month" => "#{item["year"]}-#{item["month"].to_s.rjust(2, "0")}", "keywords" => organic["count"].to_i, "traffic" => organic["etv"].to_f.round,
+           "top_10" => organic.values_at("pos_1", "pos_2_3", "pos_4_10").sum(&:to_i)}
+        end.sort_by { it["month"] }}
+      end
+
+      # A site's pages that bring it the most search traffic (Labs relevant pages).
+      def relevant_pages(domain)
+        task = labs_task(target: domain, limit: 15, order_by: ["metrics.organic.etv,desc"])
+        result = @client.post("dataforseo_labs/google/relevant_pages/live", task, target: domain, ceiling: CEILINGS[:relevant_pages]).first || {}
+        {"pages" => Array(result["items"]).filter_map do |item|
+          organic = item.dig("metrics", "organic") || {}
+          {"url" => item["page_address"], "traffic" => organic["etv"].to_f.round, "keywords" => organic["count"].to_i, "top_3" => organic.values_at("pos_1", "pos_2_3").sum(&:to_i)} if item["page_address"]
+        end}
+      end
+
+      # The questions customers ask on a Google Business Profile, and which are unanswered (Business Data Q&A).
+      def gbp_qa(cid)
+        task = {keyword: "cid:#{cid}", location_name: @setting.country, language_code: @setting.language_code, depth: 20}
+        result = @client.post("business_data/google/questions_and_answers/live", task, target: "cid:#{cid}", ceiling: CEILINGS[:gbp_qa]).first || {}
+        answered = Array(result["items"]).map { {"question" => it["question_text"].to_s.truncate(300), "answers" => Array(it["items"]).size, "at" => it["timestamp"]} }
+        waiting = Array(result["items_without_answers"]).map { {"question" => it["question_text"].to_s.truncate(300), "answers" => 0, "at" => it["timestamp"]} }
+        {"questions" => (waiting + answered).first(25), "unanswered" => waiting.size}
+      end
+
+      def gbp_posts_task(cid) = {keyword: "cid:#{cid}", location_name: @setting.country, language_code: @setting.language_code, depth: 20}
+
+      def gbp_posts_from(result)
+        posts = Array(result["items"]).map { {"text" => (it["post_text"] || it["snippet"]).to_s.truncate(400), "at" => it["timestamp"], "type" => it["type"], "url" => it["url"]}.compact }
+        {"posts" => posts, "last_90_days" => posts.count { it["at"].present? && (Time.zone.parse(it["at"]) rescue nil).to_i > 90.days.ago.to_i }} # rubocop:disable Style/RescueModifier
+      end
+
+      def trustpilot_task(domain) = {domain: domain, sort_by: "recency", depth: 40}
+
+      def tripadvisor_task(name) = {keyword: name, location_name: @setting.country, language_code: @setting.language_code, depth: 30, sort_by: "most_recent"}
+
+      # Trustpilot's or Tripadvisor's reviews, in the shape Google's take (reviews_from).
+      def other_reviews_from(result)
+        reviews = Array(result["items"]).map do |item|
+          {"text" => (item["review_text"] || item["review_body"]).to_s.truncate(1000), "stars" => item.dig("rating", "value")&.to_i, "at" => item["timestamp"],
+           "reviewer" => item.dig("user_profile", "name") || item["profile_name"], "answered" => Array(item["responses"]).any? || item["owner_answer"].present?, "url" => item["review_url"] || item["url"]}.compact
+        end
+        {"rating" => result.dig("rating", "value"), "count" => (result["reviews_count"] || result.dig("rating", "votes_count")).to_i, "reviews" => reviews}
+      end
 
       # The web talking about a business by name (Content Analysis): how often, how warmly, and where.
       def web_mentions(name)

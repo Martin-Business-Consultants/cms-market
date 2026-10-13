@@ -35,6 +35,7 @@
       <% if @settings.dataforseo_password %>
         <label class="choice text-small"><%= form.check_box :remove_dataforseo_password %><span>Remove the saved password</span></label>
       <% end %>
+      <%= settings_switch form, :queue, "Save money: queue what can wait", hint: "Google's results, Maps points and most AI answers go through DataForSEO's queue at about a third of the price, arriving within minutes of the pull. Off: everything at once.", checked: @settings.queue? %>
       <%= settings_switch form, :sandbox, "Test mode", hint: "Pulls from DataForSEO's sandbox: free, with made-up data in the real shape. For trying Market out; switch it off for real data.", checked: @settings.sandbox? %>
     </section>
 
@@ -56,7 +57,7 @@
     <section class="panel panel--padded fields">
       <div class="stack stack--xs">
         <h2 class="heading">Also pull</h2>
-        <p class="text-muted">More of what DataForSEO knows, each a few cents a pull.</p>
+        <p class="text-muted">More of what DataForSEO knows, each a few cents a pull. Each turns on the screens and findings that use it.</p>
       </div>
       <%= hidden_field_tag "market[extras][]", "", id: nil %>
       <% Market::Settings::EXTRAS.each do |key, label| %>

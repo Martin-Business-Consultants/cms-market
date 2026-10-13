@@ -9,7 +9,7 @@
 # mentions. A few queries in all.
 class Market::Search::Overview
   Site = Data.define(:name, :domain, :competitor, :overview, :previous, :keywords, :backlinks, :ai_overview, :business_profile, :web_mentions,
-    :reviews, :backlink_history) do
+    :reviews, :backlink_history, :gbp_posts, :gbp_qa, :trustpilot, :tripadvisor, :rank_history, :relevant_pages) do
     def own? = competitor.nil?
     def pulled? = overview.present?
     def figure(key) = overview&.data&.dig(key)
@@ -54,7 +54,10 @@ class Market::Search::Overview
   def all_checks = @ai.values.flat_map(&:values).select(&:answered)
 
   # Reviews still being fetched from DataForSEO's queue.
-  def reviews_waiting? = Market::QueuedTask.queued.where(kind: "reviews").exists?
+  def reviews_waiting? = Market::QueuedTask.queued.where(kind: %w[reviews trustpilot tripadvisor]).exists?
+
+  # Checks still on their way from DataForSEO's queue, by kind.
+  def arriving = @arriving ||= Market::QueuedTask.queued.group(:kind).count
 
   # The area the local searches a month are for ("Grand Rapids,Michigan,United States").
   def volume_area = market("keyword_facts")&.data&.dig("area")
@@ -97,6 +100,8 @@ class Market::Search::Overview
     Site.new(name: name, domain: domain, competitor: competitor, overview: overview, previous: previous,
       keywords: kinds["keywords"]&.first, backlinks: kinds["backlinks"]&.first, ai_overview: kinds["ai_overview"]&.first,
       business_profile: kinds["business_profile"]&.first, web_mentions: kinds["web_mentions"]&.first, reviews: kinds["reviews"]&.first,
-      backlink_history: kinds["backlink_history"]&.first)
+      backlink_history: kinds["backlink_history"]&.first, gbp_posts: kinds["gbp_posts"]&.first, gbp_qa: kinds["gbp_qa"]&.first,
+      trustpilot: kinds["trustpilot"]&.first, tripadvisor: kinds["tripadvisor"]&.first, rank_history: kinds["rank_history"]&.first,
+      relevant_pages: kinds["relevant_pages"]&.first)
   end
 end

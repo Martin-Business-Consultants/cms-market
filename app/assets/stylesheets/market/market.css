@@ -557,10 +557,6 @@
     white-space: nowrap;
   }
 
-  .market-jump {
-    padding-inline: var(--space-1);
-  }
-
   /* The tracked searches: a column group per source, a mark per AI. */
   .market-tracked {
     .market-group {
@@ -611,5 +607,77 @@
     max-block-size: 16rem;
     overflow-y: auto;
     padding: var(--space-2) var(--space-3);
+  }
+
+  /* Goals: each a line, its figures to the right, a meter and its pace under it. */
+  .market-goals {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .market-goal {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding-block: var(--space-3);
+
+    .market-meter {
+      flex: 1;
+      max-inline-size: 24rem;
+    }
+  }
+
+  .market-goal__figures {
+    font-variant-numeric: tabular-nums;
+    text-align: end;
+    white-space: nowrap;
+  }
+
+  .market-goal-form {
+    margin-block-start: var(--space-3);
+  }
+
+  /* Overview: a panel's heading row, and the numbered things to do. */
+  .market-panel-head {
+    padding: var(--space-4) var(--space-4) var(--space-2);
+  }
+
+  .market-next-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .market-step-number {
+    align-items: center;
+    background-color: var(--gray-100);
+    border-radius: 999px;
+    color: var(--gray-700);
+    display: inline-flex;
+    flex: none;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    block-size: 1.5rem;
+    inline-size: 1.5rem;
+    justify-content: center;
+  }
+
+  .market-item--current .market-step-number {
+    background-color: var(--accent-600);
+    color: white;
+  }
+
+  .market-group-label {
+    padding: var(--space-3) var(--space-4) 0;
+  }
+
+  /* Search's tabs, across the page, and the line saying what the open one shows. */
+  .market-tabs--page {
+    padding-inline: 0;
+  }
+
+  .market-tab-note {
+    margin-block-start: calc(var(--space-2) * -1);
   }
 }

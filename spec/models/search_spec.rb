@@ -65,11 +65,11 @@ RSpec.describe "Market search" do
       queued = JSON.generate({"status_code" => 20000, "cost" => 0, "tasks" => [{"id" => "abc-123", "status_code" => 40602, "status_message" => "Task In Queue.", "result" => nil}]})
       api = client([200, created], [200, queued], [200, dataforseo([{"rating" => {"value" => 4.5}, "reviews_count" => 3, "items" => [{"type" => "google_reviews_search", "review_text" => "Fine", "rating" => {"value" => 4}, "owner_answer" => "Thanks"}]}], cost: 0)])
       search = Market::Search::Api.new(client: api)
-      id, endpoint = search.post_reviews("111")
-      expect([id, endpoint]).to eq(["abc-123", "business_data/google/reviews/task_get"])
+      task = search.queue("reviews", "business_data/google/reviews", [{task: search.post_reviews_task("111")}], pull: nil, get: "business_data/google/reviews/task_get").first
+      expect(task).to have_attributes(task_id: "abc-123", endpoint: "business_data/google/reviews/task_get", state: "queued")
+      expect(@transport.calls.first[1].to_s).to end_with("/v3/business_data/google/reviews/task_post")
       expect(@transport.calls.first[2].first).to include(cid: "111", depth: 50, sort_by: "newest")
 
-      task = Market::QueuedTask.new(kind: "reviews", task_id: id, endpoint: endpoint)
       expect { search.queued_result(task) }.to raise_error(Market::Search::Client::NotReady)
       expect(search.queued_result(task)).to include("rating" => 4.5, "count" => 3, "reviews" => [a_hash_including("text" => "Fine", "stars" => 4, "answered" => true)])
       expect(@transport.calls.last[1].to_s).to end_with("/v3/business_data/google/reviews/task_get/abc-123")
@@ -95,7 +95,7 @@ RSpec.describe "Market search" do
 
     before do
       connect_search
-      Market::Settings.update("ai_platforms" => [], "extras" => [])
+      Market::Settings.update("ai_platforms" => [], "extras" => [], "queue" => "0")
       Market::Profile.update("search_location" => "Springfield, Illinois, United States")
       Market::Keyword.track("emergency plumber\nwater heater repair")
     end
@@ -151,7 +151,9 @@ RSpec.describe "Market search" do
     it "says the most it could cost before it runs" do
       expect(described_class.ceiling).to eq((2 * (0.05 + 0.25 + 0.05) + 0.10 + 2 * 0.02).round(2))
       Market::Settings.update("ai_platforms" => %w[google_ai_overview chat_gpt claude], "extras" => %w[keyword_facts])
-      expect(described_class.ceiling).to eq((2 * (0.05 + 0.25 + 0.05) + 0.10 + 2 * 0.02 + 2 * (0.005 + 0.01 + 0.08) + 0.15 + 0.05 + 0.05 + 0.1).round(2))
+      expect(described_class.ceiling).to eq((2 * (0.05 + 0.25 + 0.05) + 0.10 + 2 * 0.02 + 2 * (0.005 + 0.01 + 0.08) + 0.15 + 0.05 + 0.05 + 0.1 + 0.03).round(2))
+      Market::Settings.update("queue" => "1")
+      expect(described_class.ceiling).to eq((2 * (0.05 + 0.25 + 0.05) + 0.10 + 2 * 0.0015 + 2 * (0.001 + 0.0015 + 0.08) + 0.15 + 0.05 + 0.05 + 0.1 + 0.03).round(2))
     end
 
     it "asks each tracked search of each AI, noting who's named and cited, and pulls the extras" do
@@ -197,9 +199,9 @@ RSpec.describe "Market search" do
       fake = api(ai: {reviews_pending: true})
 
       expect { pull.run!(api: fake) }.to have_enqueued_job(Market::QueuedTasksJob)
-      expect(fake.calls).to include("post_reviews:111", "post_reviews:222", "backlink_history:acme.example", "link_gap", "ads_locations:US",
+      expect(fake.calls).to include("queue:reviews:1", "queue:gbp_posts:1", "gbp_qa:111", "gbp_qa:222", "backlink_history:acme.example", "link_gap", "ads_locations:US",
         "local_volume:Springfield,Illinois,United States")
-      expect(Market::QueuedTask.queued.pluck(:endpoint)).to contain_exactly("business_data/google/extended_reviews/task_get", "business_data/google/reviews/task_get")
+      expect(Market::QueuedTask.queued.where(kind: "reviews").pluck(:endpoint)).to contain_exactly("business_data/google/extended_reviews/task_get", "business_data/google/reviews/task_get")
       facts = Market::SearchSnapshot.find_by!(kind: "keyword_facts").data
       expect(facts).to include("area" => "Springfield,Illinois,United States")
       expect(facts["keywords"]["emergency plumber"]).to include("local_volume" => 90, "local_cpc" => 14.0, "volume" => 880)
@@ -215,6 +217,36 @@ RSpec.describe "Market search" do
       expect(own).to include("rating" => 4.1, "themes" => {"praise" => ["fair prices"], "complaints" => ["slow callbacks"]}, "advice" => "Call back within the hour.")
       expect(Market::Finding.pluck(:kind)).to include("reviews_unanswered", "review_pace", "review_complaints", "links_falling", "link_gap")
       expect(Market::Workup::Brief.new("visibility:own").to_s).to include("praise fair prices", "springfieldchamber.example")
+    end
+
+    it "saving money, queues Google, AI Mode, ChatGPT, Gemini and Copilot, asks Perplexity and Claude at once, and puts each answer to use when it's in" do
+      Market::Settings.update("queue" => "1", "ai_platforms" => %w[google_ai_overview google_ai_mode chat_gpt bing_copilot claude], "extras" => %w[keywords history])
+      ai = {"emergency plumber" => {
+        "google_ai_overview" => {"text" => "Rival and Acme Plumbing.", "sources" => [{"domain" => "acme.example", "url" => "https://acme.example/"}]},
+        "chat_gpt" => {"text" => "Call Rival.", "sources" => [], "businesses" => [{"title" => "Rival", "domain" => "rival.example"}]},
+        "bing_copilot" => {"text" => "Acme Plumbing answers at night.", "sources" => [{"domain" => "acme.example", "url" => "https://acme.example/"}]},
+        "claude" => {"text" => "Try Acme Plumbing.", "sources" => []}
+      }}
+      fake = api(ai: ai)
+
+      expect { pull.run!(api: fake) }.to have_enqueued_job(Market::QueuedTasksJob)
+      expect(pull.reload.state).to eq("ready")
+      expect(fake.calls).to include("queue:ranking:2", "queue:ai_mode:2", "queue:llm_scraper:2", "queue:bing:2", "claude:emergency plumber",
+        "content_ideas", "rank_history:acme.example", "relevant_pages:rival.example")
+      expect(fake.calls).not_to include("ranking:emergency plumber", "chat_gpt:emergency plumber")
+      expect(Market::Ranking.count).to eq(0)
+      expect(pull.arriving).to eq(8)
+
+      expect(Market::QueuedTask.fetch_ready!(api: fake)).to eq(0)
+      ranking = Market::Keyword.find_by!(keyword: "emergency plumber").rankings.first
+      expect(ranking).to have_attributes(position: 5, location: "Springfield,Illinois,United States", pull_id: pull.id)
+      checks = Market::AiCheck.where(keyword: ranking.keyword).index_by(&:platform)
+      expect(checks.keys).to match_array(%w[google_ai_overview google_ai_mode chat_gpt bing_copilot claude])
+      expect(checks["google_ai_overview"]).to have_attributes(mentioned: true, cited: true)
+      expect(checks["bing_copilot"]).to have_attributes(mentioned: true, cited: true)
+      expect(checks["chat_gpt"].named.map { it["name"] }).to eq(["Rival"])
+      expect(Market::Finding.pluck(:kind)).to include("seasons")
+      expect(Market::Finding.find_by!(kind: "seasons").detail).to include("burst pipe repair")
     end
 
     it "gives up on a queued task DataForSEO never finishes, and keeps one that failed" do

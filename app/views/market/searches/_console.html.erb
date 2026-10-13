@@ -31,7 +31,7 @@
                 <td>
                   <% if tracked_words.include?(row["keys"][0]) %>
                     <span class="text-small text-muted">Tracked</span>
-                  <% elsif can_write %>
+                  <% elsif can_write then %>
                     <%= button_to "Track", market_keywords_path, params: {keyword: {keywords: row["keys"][0], source: "ranked"}, return_to: market_search_path(anchor: "search_console")}, class: "btn btn--sm", form_class: "contents" %>
                   <% end %>
                 </td>

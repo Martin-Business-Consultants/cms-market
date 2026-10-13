@@ -115,4 +115,36 @@
       </ul>
     </details>
   <% end %>
+  <% topics = data.market("ai_topics")&.data %>
+  <% if topics && (Array(topics["domains"]).any? || Array(topics["pages"]).any?) %>
+    <div class="grid grid--2">
+      <div class="stack stack--xs">
+        <h3 class="label">Sites AI cites for these searches <%= market_source :ai_db %></h3>
+        <ul class="market-chips text-small">
+          <% Array(topics["domains"]).first(12).each do |row| %>
+            <%# herb:key row["domain"] %>
+            <% own = row["domain"] == data.profile.domain %>
+            <li class="<%= class_names("market-chip--own": own) %>"><%= row["domain"] %> · <%= row["mentions"] %></li>
+          <% end %>
+        </ul>
+      </div>
+      <div class="stack stack--xs">
+        <h3 class="label">Pages AI cites most</h3>
+        <ul class="market-changes text-small">
+          <% Array(topics["pages"]).first(6).each do |row| %>
+            <%# herb:key row["page"] %>
+            <li><%= link_to row["page"].to_s.truncate(70), row["page"], class: "link", target: "_blank", rel: "noopener" %> · <%= row["mentions"] %></li>
+          <% end %>
+        </ul>
+        <p class="text-small text-muted">What these pages do, a page here can do better: it's what the AIs answer from.</p>
+      </div>
+    </div>
+  <% end %>
+  <% history = Array(data.market("ai_history")&.data&.dig("months")) %>
+  <% if history.size > 1 %>
+    <div class="stack stack--xs">
+      <h3 class="label">The site in Google's AI answers, by month <%= market_source :ai_db %></h3>
+      <%= market_line_chart [Market::Report::Series.new(name: "Mentions", own: true, points: history.map { [Date.parse("#{it["month"]}-01").to_time, it["mentions"].to_f] })], label: "AI mentions by month", format: ->(value) { value.round.to_s } %>
+    </div>
+  <% end %>
 </section>

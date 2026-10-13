@@ -13,7 +13,8 @@ class Market::AiCheck < ApplicationRecord
     "chat_gpt" => {name: "ChatGPT", owner: "OpenAI", how: "ChatGPT's search answer"},
     "gemini" => {name: "Gemini", owner: "Google", how: "Gemini's answer"},
     "perplexity" => {name: "Perplexity", owner: "Perplexity", how: "Perplexity's answer (Sonar, searching the web)"},
-    "claude" => {name: "Claude", owner: "Anthropic", how: "Claude's answer, searching the web"}
+    "claude" => {name: "Claude", owner: "Anthropic", how: "Claude's answer, searching the web"},
+    "bing_copilot" => {name: "Copilot", owner: "Microsoft", how: "the Copilot answer on Bing's results page"}
   }.freeze
 
   belongs_to :keyword

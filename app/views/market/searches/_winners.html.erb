@@ -22,9 +22,9 @@
             <td>
               <% if own %>
                 <span class="text-small text-muted">This site</span>
-              <% elsif watched.include?(row["domain"]) %>
+              <% elsif watched.include?(row["domain"]) then %>
                 <span class="text-small text-muted">Watched</span>
-              <% elsif can_write %>
+              <% elsif can_write then %>
                 <%= link_to "Watch", new_market_competitor_path(name: row["domain"], website: "https://#{row["domain"]}"), class: "btn btn--sm" %>
               <% end %>
             </td>

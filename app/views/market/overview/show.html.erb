@@ -1,116 +1,146 @@
 <% @page_title = "Market" %>
 <% can_write = Current.user.can?("market:write") %>
-<% urgent = @findings.any? { it.severity == "high" } %>
+<% steps = @guide.steps %>
+<% left = steps.reject(&:done) %>
+<% back = market_overview_path(item: @action&.key) %>
 
 <% content_for :page_actions do %>
-  <% if can_write %>
-    <%= link_to "Profile", edit_market_profile_path, class: "btn" %>
-  <% end %>
-  <%= link_to "Plan", market_plan_path, class: "btn" %>
+  <% if can_write %><%= link_to "Profile", edit_market_profile_path, class: "btn" %><% end %>
+  <%= link_to "Report", market_report_path, class: "btn" %>
 <% end %>
 <%= render "layouts/shared/page_header", title: "Market" %>
 
 <div class="stack stack--lg">
   <% if can_write && @profile.blank? && !Market::Intake.working? %>
     <section class="panel panel--padded stack stack--sm market-start">
-      <h2 class="heading">Get started</h2>
-      <p class="text-muted">Give the business's name, website and ZIP, and <%= Market::Plan.ai_available? ? "the AI fills in the rest of the market profile from the website: industry, area, what it sells, who it serves, how it stands out, and competitors and searches to watch." : "fill in the rest of the market profile." %> It takes a minute.</p>
+      <h2 class="heading">Start here</h2>
+      <p class="text-muted">Market helps you set marketing goals, see where the business stands against its competitors on Google, Maps and AI assistants, and do the few things that move the goals most. Give the business's name, website and ZIP<%= ", and the AI fills in the rest from the website" if Market::Plan.ai_available? %>. It takes a minute.</p>
       <div><%= link_to "Get started", new_market_intake_path, class: "btn btn--primary" %></div>
     </section>
   <% end %>
 
   <section class="panel panel--padded stack stack--sm">
     <div class="row row--between">
-      <h2 class="heading"><%= @profile.business_name %></h2>
-      <% if @profile.website %><%= link_to @profile.domain, @profile.website, class: "link text-small", target: "_blank", rel: "noopener" %><% end %>
+      <h2 class="heading">Goals</h2>
+      <%= link_to (@goals.any? ? "Change goals" : "Set goals"), market_plan_path(anchor: "goals"), class: "link text-small" %>
     </div>
-    <div class="cluster cluster--base">
-      <span><strong class="text-ink"><%= @competitor_count %></strong> <span class="text-muted"><%= "competitor".pluralize(@competitor_count) %> watched</span></span>
-      <span><strong class="<%= class_names("text-danger": urgent, "text-ink": !urgent) %>"><%= @findings.size %></strong> <span class="text-muted">open <%= "finding".pluralize(@findings.size) %></span></span>
-      <span><strong class="text-ink"><%= Market::Opportunity.open.count %></strong> <span class="text-muted">open opportunities</span></span>
-      <span class="text-muted"><%= @own ? "Site read #{time_ago_in_words(@own.taken_at)} ago" : "The site hasn't been read yet" %></span>
-    </div>
-    <% if @profile.industry || @profile.service_area %>
-      <p class="text-small text-muted"><%= [@profile.industry, @profile.service_area].compact.join(" · ") %></p>
-    <% end %>
-    <% if @profile.gaps.any? %>
-      <p class="market-notice text-small">
-        Plans and findings are only as good as what's known. Missing: <%= @profile.gaps.to_sentence %>.
-        <% if can_write %><%= link_to "Fill in the profile", edit_market_profile_path, class: "link" %><% end %>
-      </p>
+    <% if @goals.any? %>
+      <ul class="divided market-goals">
+        <% @goals.each do |goal| %>
+          <%# herb:key goal.id %>
+          <%= render "market/goals/goal", goal: goal, can_write: false %>
+        <% end %>
+      </ul>
+    <% else %>
+      <p class="text-small text-muted">What should the marketing do? More calls from Google, a search's top 3 on Maps, being named when people ask an AI. Set a goal or two and everything here aims at them.</p>
     <% end %>
   </section>
 
-  <%# The three tabs and the open item in one frame: opening one swaps the right-hand column, keeping the address. %>
   <turbo-frame id="market_overview" data-turbo-action="advance">
     <div class="grid grid--2 market-split">
-      <section class="panel" aria-label="<%= Market::OverviewController::TABS[@tab] %>">
-        <nav class="market-tabs" aria-label="Show">
-          <% Market::OverviewController::TABS.each do |tab, label| %>
-            <%# herb:key tab %>
-            <% count = {"findings" => @findings, "opportunities" => @opportunities, "changes" => @changes}[tab].size %>
-            <%= link_to market_overview_path(tab: ((tab == "findings") ? nil : tab)), class: class_names("market-tab", "market-tab--current": @tab == tab),
-                  aria: {current: ((@tab == tab) ? "page" : nil)} do %>
-              <%= label %> <span class="text-muted"><%= count %></span>
-            <% end %>
-          <% end %>
-        </nav>
-        <% if @items.any? %>
-          <ul class="divided">
-            <% @items.each do |item| %>
-              <%# herb:key item.id %>
-              <% current = item == @item %>
-              <li>
-                <%= link_to market_overview_path(tab: ((@tab == "findings") ? nil : @tab), item: item.id), class: class_names("market-item", "market-item--current": current),
-                      aria: {current: (current ? "true" : nil)} do %>
-                  <% if @tab == "findings" %>
-                    <span class="stack stack--2xs grow">
-                      <span class="text-ink"><%= item.title %></span>
-                      <span class="text-small text-muted"><%= [item.channel_label, "since #{l item.first_seen_at.to_date, format: :short}"].compact.join(" · ") %></span>
-                    </span>
-                    <%= market_severity_tag item %>
-                  <% elsif @tab == "opportunities" then %>
-                    <span class="stack stack--2xs grow">
-                      <span class="text-ink"><%= item.title %></span>
-                      <span class="text-small text-muted"><%= item.channel_label %> · <%= item.horizon_label %><%= " · planned" if item.state == "planned" %></span>
-                    </span>
-                    <span class="cluster cluster--sm"><%= market_impact_tag item %><%= market_effort_tag item %></span>
-                  <% else %>
-                    <span class="stack stack--2xs grow">
-                      <span class="text-ink"><%= item.competitor.name %></span>
-                      <span class="text-small text-muted"><%= item.differences.first %><%= " and #{item.differences.size - 1} more" if item.differences.size > 1 %></span>
-                    </span>
-                    <span class="text-small text-muted nowrap"><%= l item.taken_at.to_date, format: :short %></span>
-                  <% end %>
-                <% end %>
-              </li>
-            <% end %>
-          </ul>
-        <% else %>
-          <p class="empty-state">
-            <% if @tab == "findings" %>Nothing yet. Findings come from the profile, the competitors' websites and the site's own, search data and the map, worked out after each reading and every night.
-            <% elsif @tab == "opportunities" then %>None open. <%= link_to "Draft a plan", market_plan_path, class: "link", data: {turbo_frame: "_top"} %> to find them, or make one from a finding.
-            <% else %>Nothing the weekly readings noticed in the last 60 days. <%= link_to "Add competitors", market_competitors_path, class: "link", data: {turbo_frame: "_top"} %> with their websites to watch them.
-            <% end %>
-          </p>
-        <% end %>
-      </section>
-
-      <section class="panel panel--padded market-detail" aria-label="The one open">
-        <% back = market_overview_path(tab: ((@tab == "findings") ? nil : @tab), item: @item&.id) %>
-        <% if @item.nil? %>
-          <div class="stack stack--sm market-detail__empty">
-            <%= icon_tag "chart", class: "text-faint" %>
-            <p class="text-muted">Open one to see it in full and act on it.</p>
+      <div class="stack stack--lg">
+        <section class="panel" aria-label="Do next">
+          <div class="row row--between market-panel-head">
+            <h2 class="heading">Do next</h2>
+            <span class="text-small text-muted">Toward the goals, most worth it first</span>
           </div>
-        <% elsif @tab == "findings" then %>
-          <%= render "market/findings/detail", finding: @item, can_write: can_write, back: back %>
-        <% elsif @tab == "opportunities" then %>
-          <%= render "market/overview/opportunity", opportunity: @item, can_write: can_write, can_pages: Current.user.can?("pages:write"), back: back %>
+          <% if @actions.any? %>
+            <ol class="divided market-next-list">
+              <% @actions.each_with_index do |action, index| %>
+                <%# herb:key action.key %>
+                <% current = action == @action %>
+                <li>
+                  <%= link_to market_overview_path(item: action.key), class: class_names("market-item", "market-item--current": current), aria: {current: (current ? "true" : nil)} do %>
+                    <span class="market-step-number"><%= index + 1 %></span>
+                    <span class="stack stack--2xs grow">
+                      <span class="text-ink"><%= action.title %></span>
+                      <span class="text-small text-muted"><%= action.why %></span>
+                    </span>
+                    <% if action.tone == :urgent %><span class="badge badge--danger">Now</span><% elsif action.tone == :quick then %><span class="badge badge--success">Quick win</span><% end %>
+                  <% end %>
+                </li>
+              <% end %>
+            </ol>
+          <% else %>
+            <p class="empty-state"><%= @guide.set_up? ? "Nothing waiting. Draft the plan again, or look at the findings." : "Finish setting up (below) and the things worth doing show here." %></p>
+          <% end %>
+        </section>
+
+        <% if left.any? %>
+          <section class="panel panel--padded stack stack--sm" aria-label="Getting set up">
+            <div class="row row--between">
+              <h2 class="heading">Getting set up</h2>
+              <span class="text-small text-muted"><%= steps.count(&:done) %> of <%= steps.size %> done</span>
+            </div>
+            <%= market_meter steps.count(&:done) * 100 / steps.size, label: "#{steps.count(&:done)} of #{steps.size} steps done" %>
+            <ol class="divided market-steps">
+              <% left.each do |step| %>
+                <%# herb:key step.key %>
+                <li class="row row--between market-step">
+                  <span class="stack stack--2xs grow">
+                    <strong><%= step.title %><%= tag.span(" · optional", class: "text-small text-muted") if step.optional %></strong>
+                    <span class="text-small text-muted"><%= step.why %></span>
+                  </span>
+                  <%= link_to step.label, step.path, class: class_names("btn btn--sm", "btn--primary": step == left.first), data: {turbo_frame: "_top"} %>
+                </li>
+              <% end %>
+            </ol>
+          </section>
+        <% end %>
+      </div>
+
+      <section class="panel panel--padded market-detail" aria-label="The open item">
+        <% if @action.nil? %>
+          <div class="stack stack--sm market-detail__empty">
+            <%= icon_tag "check-circle", class: "text-faint" %>
+            <p class="text-muted">Open one of the things to do to act on it.</p>
+          </div>
+        <% elsif @action.kind == :opportunity then %>
+          <%= render "market/opportunities/detail", opportunity: @action.record, can_write: can_write, back: back %>
+        <% elsif @action.kind == :finding then %>
+          <%= render "market/findings/detail", finding: @action.record, can_write: can_write, back: back %>
         <% else %>
-          <%= render "market/overview/change", reading: @item, can_write: can_write, back: back %>
+          <% goal = @action.record %>
+          <div class="stack stack--md">
+            <h2 class="heading heading--lg"><%= goal.title %></h2>
+            <ul class="market-goals"><%= render "market/goals/goal", goal: goal, can_write: false %></ul>
+            <p class="text-small text-muted">Behind pace: at this rate it won't reach <%= goal.describe(goal.target) %> by <%= l goal.due_on, format: :long %>. The opportunities serving it, done first, move it most; the plan drafted again aims at it.</p>
+            <% serving = goal.opportunities.active.to_a %>
+            <% if serving.any? %>
+              <ul class="divided">
+                <% serving.each do |opportunity| %>
+                  <%# herb:key opportunity.id %>
+                  <li class="market-row"><%= link_to opportunity.title, market_plan_path(item: opportunity.id), class: "link", data: {turbo_frame: "_top"} %></li>
+                <% end %>
+              </ul>
+            <% end %>
+            <div><%= link_to "The plan", market_plan_path, class: "btn btn--sm", data: {turbo_frame: "_top"} %></div>
+          </div>
         <% end %>
       </section>
     </div>
   </turbo-frame>
+
+  <% if @changes.any? %>
+    <section class="panel panel--padded stack stack--sm">
+      <div class="row row--between">
+        <h2 class="heading">What competitors changed</h2>
+        <%= link_to "Competitors", market_competitors_path, class: "link text-small" %>
+      </div>
+      <ul class="divided">
+        <% @changes.each do |reading| %>
+          <%# herb:key reading.id %>
+          <li class="row row--between market-row">
+            <span class="stack stack--2xs grow">
+              <span class="text-small"><%= link_to reading.competitor.name, market_competitor_path(reading.competitor), class: "link" %> <span class="text-muted">· <%= l reading.taken_at.to_date, format: :short %></span></span>
+              <span class="text-small text-muted"><%= Array(reading.differences).first(3).join("; ") %></span>
+            </span>
+            <% if can_write %>
+              <%= button_to "Make it an opportunity", market_change_opportunity_path(reading), params: {return_to: market_overview_path}, class: "btn btn--sm" %>
+            <% end %>
+          </li>
+        <% end %>
+      </ul>
+    </section>
+  <% end %>
 </div>

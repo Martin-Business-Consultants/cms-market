@@ -63,7 +63,7 @@
               <% elsif sent["page_path"] && sent["kind"] == "new_page" then %>
                 <%= link_to edit_page_path(sent["page_path"]), class: "btn btn--sm", data: {turbo_frame: "_top"} do %><%= icon_tag "check-circle" %> <span>Draft page started</span><% end %>
               <% elsif sent["opportunity_id"] then %>
-                <%= link_to market_overview_path(tab: "opportunities", item: sent["opportunity_id"]), class: "btn btn--sm", data: {turbo_frame: "_top"} do %><%= icon_tag "check-circle" %> <span>On the plan</span><% end %>
+                <%= link_to market_plan_path(item: sent["opportunity_id"]), class: "btn btn--sm", data: {turbo_frame: "_top"} do %><%= icon_tag "check-circle" %> <span>On the plan</span><% end %>
               <% else %>
                 <span class="text-small text-muted"><%= icon_tag "check-circle" %> Done</span>
               <% end %>

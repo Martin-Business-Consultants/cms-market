@@ -1,0 +1,22 @@
+<%# locals: (data:, settings:) %>
+<%# How the search data stands: a pull running, the last one's trouble, checks still on their way from DataForSEO's queue, test mode. %>
+<% pull = data.last_pull %>
+<% arriving = data.arriving.values.sum %>
+<% if pull&.working? %>
+  <p class="market-notice text-small" data-controller="refresh" data-refresh-interval-value="5">
+    <%= icon_tag "refresh" %> Pulling from DataForSEO: each site's visibility, the searches on Google, Maps and the AIs, and the rest. A few minutes.
+  </p>
+<% elsif arriving.positive? then %>
+  <p class="market-notice text-small" data-controller="refresh" data-refresh-interval-value="30">
+    <%= icon_tag "refresh" %> <%= pluralize(arriving, "check") %> still on the way from DataForSEO's queue (cheaper than at once): they fill in here within minutes.
+  </p>
+<% elsif pull && pull.state.in?(%w[stopped failed partial]) then %>
+  <% partial = pull.state == "partial" %>
+  <p class="<%= class_names("text-small", "market-notice": partial, "notice notice--danger": !partial) %>" role="status">
+    The last pull <%= partial ? "missed some parts" : pull.state %><%= ": #{pull.error}" if pull.error.present? %>.
+    <%= link_to "What happened", market_search_pulls_path, class: "link" %>
+  </p>
+<% end %>
+<% if settings.sandbox? %>
+  <p class="market-notice text-small" role="status"><strong>Test mode:</strong> pulls use DataForSEO's sandbox, free and made up. Switch it off in Settings › Market for real data.</p>
+<% end %>

@@ -1,0 +1,31 @@
+<%# locals: (plan:) %>
+<%# The plan's suggestions to take, checked by a person: an industry, competitors, searches to track. %>
+<% competitors = plan.new_competitor_suggestions %>
+<% keywords = plan.new_keyword_suggestions %>
+<% if plan.industry_suggestion_new? || competitors.any? || keywords.any? %>
+  <details class="market-closed">
+    <summary class="text-small">The AI's suggestions to check (<%= competitors.size + (keywords.any? ? 1 : 0) + (plan.industry_suggestion_new? ? 1 : 0) %>)</summary>
+    <div class="stack stack--sm">
+      <% if plan.industry_suggestion_new? %>
+        <div class="row row--between market-suggestion">
+          <span class="grow"><strong>Industry: <%= plan.industry_suggestion["name"] %><%= " (NAICS #{plan.industry_suggestion["naics_code"]})" if plan.industry_suggestion["naics_code"].present? %></strong>
+            <span class="text-small text-muted"><%= plan.industry_suggestion["why"] %></span></span>
+          <%= button_to "Use it", market_profile_path, method: :patch, params: {profile: {industry: plan.industry_suggestion["name"], naics_code: plan.industry_suggestion["naics_code"]}}, class: "btn btn--sm" %>
+        </div>
+      <% end %>
+      <% competitors.each_with_index do |suggestion, index| %>
+        <%# herb:key index %>
+        <div class="row row--between market-suggestion">
+          <span class="grow"><strong><%= suggestion["name"] %></strong> <span class="text-small text-muted"><%= [suggestion["website"], suggestion["why"]].compact.join(" · ") %></span></span>
+          <%= link_to "Check and add", new_market_competitor_path(name: suggestion["name"], website: suggestion["website"]), class: "btn btn--sm" %>
+        </div>
+      <% end %>
+      <% if keywords.any? %>
+        <div class="row row--between market-suggestion">
+          <span class="grow"><strong>Searches to track</strong> <span class="text-small text-muted"><%= keywords.join(", ") %></span></span>
+          <%= button_to "Track them", market_keywords_path, params: {keyword: {keywords: keywords.join("\n"), source: "plan"}}, class: "btn btn--sm" %>
+        </div>
+      <% end %>
+    </div>
+  </details>
+<% end %>

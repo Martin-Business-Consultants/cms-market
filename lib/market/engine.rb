@@ -39,6 +39,7 @@ module Market
             end
             resource :plan, only: :show
             resources :plans, only: :create
+            resources :goals, only: [:create, :update, :destroy]
             resources :opportunities, only: [:index, :create, :update, :destroy] do
               resource :page, only: :create, controller: "opportunities/pages"
             end
@@ -67,6 +68,7 @@ module Market
             resource :search, only: :show, controller: "searches"
             resources :search_pulls, only: [:index, :create], path: "search/pulls"
             resources :keywords, only: [:index, :create, :destroy]
+            resources :goals, only: [:index, :create, :update, :destroy]
             get "report", to: "reports#show", as: :report
             resources :workups, only: [:index, :show, :create] do
               post "changes/:index", to: "workup_changes#create", as: :change
@@ -90,14 +92,14 @@ module Market
 
       Cms::Plugins.menu :market, :market, label: "Market", icon: "chart", group: "Content", after: [:leads, :forms, :globals],
         path: -> { market_overview_path }, capability: "market:read"
+      # Goals → plan → do → measure: where to start and what to do next, the plan aimed at the goals,
+      # what the data says, the searches (Google, AI, Maps, the site, reputation), the competitors, and how it's going.
       Cms::Plugins.submenu :market, :market, label: "Overview", path: -> { market_overview_path }, capability: "market:read"
-      Cms::Plugins.submenu :market, :market, label: "Report", path: -> { market_report_path }, capability: "market:read", after: "Overview"
-      Cms::Plugins.submenu :market, :market, label: "Findings", path: -> { market_findings_path }, capability: "market:read", after: "Report"
-      Cms::Plugins.submenu :market, :market, label: "Competitors", path: -> { market_competitors_path }, capability: "market:read", after: "Findings"
-      Cms::Plugins.submenu :market, :market, label: "Search", path: -> { market_search_path }, capability: "market:read", after: "Competitors"
-      Cms::Plugins.submenu :market, :market, label: "Maps", path: -> { market_maps_path }, capability: "market:read", after: "Search"
-      Cms::Plugins.submenu :market, :market, label: "Plan", path: -> { market_plan_path }, capability: "market:read", after: "Maps"
-      Cms::Plugins.submenu :market, :market, label: "Profile", path: -> { edit_market_profile_path }, capability: "market:write", after: "Plan"
+      Cms::Plugins.submenu :market, :market, label: "Plan", path: -> { market_plan_path }, capability: "market:read", after: "Overview"
+      Cms::Plugins.submenu :market, :market, label: "Findings", path: -> { market_findings_path }, capability: "market:read", after: "Plan"
+      Cms::Plugins.submenu :market, :market, label: "Search", path: -> { market_search_path }, capability: "market:read", after: "Findings"
+      Cms::Plugins.submenu :market, :market, label: "Competitors", path: -> { market_competitors_path }, capability: "market:read", after: "Search"
+      Cms::Plugins.submenu :market, :market, label: "Report", path: -> { market_report_path }, capability: "market:read", after: "Competitors"
 
       Cms::Plugins.permissions :market, "Market", %w[market:read market:write market:search],
         after: ["Leads", "Commerce", "Forms", "Globals"],
@@ -127,6 +129,8 @@ module Market
       Cms::Plugins.api :market, "/api/market/search/pulls",
         description: "Pulls of search data (GET: their state, cost and notes). POST spends from the month's DataForSEO budget (market:search); {\"pull\":{\"force\":true}} buys parts pulled in the last day again."
       Cms::Plugins.api :market, "/api/market/keywords", description: "Searches tracked: list, add ({\"keyword\":{\"keywords\":\"one a line\"}}), remove."
+      Cms::Plugins.api :market, "/api/market/goals",
+        description: "Goals, measured from the data Market has: list (with the metrics there are), set ({\"goal\":{\"metric\",\"target\",\"due_on\",\"keyword_id\"}}), change, remove. The plan and GET /api/market's do_next aim at them."
       Cms::Plugins.api :market, "/api/market/plans", description: "Plans drafted by the AI plugin (the latest first); POST drafts a new one from everything known (a minute or two)."
       Cms::Plugins.api :market, "/api/market/opportunities",
         description: "Opportunities, best first (?state, ?channel, ?horizon): add, change (state: done, dismissed, planned, open), delete. POST /api/market/opportunities/:id/page starts a draft page for one."

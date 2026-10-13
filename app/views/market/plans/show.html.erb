@@ -1,28 +1,50 @@
 <% @page_title = "Plan" %>
 <% can_write = Current.user.can?("market:write") %>
-<% can_pages = Current.user.can?("pages:write") %>
-<% active, closed = @opportunities.partition(&:active?) %>
+<% back = market_plan_path(tab: ((@tab == "open") ? nil : @tab), item: @opportunity&.id) %>
 
 <% content_for :page_actions do %>
   <% if can_write && @settings.ai? %>
     <%= button_to market_plans_path, class: "btn btn--primary", form_class: "contents", disabled: @plan&.working? do %>
-      <%= icon_tag "ai" %> <span><%= @plan ? "Plan again" : "Draft a plan" %></span>
+      <%= icon_tag "ai" %> <span><%= @plan ? "Plan again" : "Draft the plan" %></span>
     <% end %>
   <% end %>
 <% end %>
 <%= render "layouts/shared/page_header", title: "Plan" %>
 
 <div class="stack stack--lg">
+  <section class="panel panel--padded stack stack--sm" id="goals">
+    <div class="row row--between">
+      <h2 class="heading">Goals</h2>
+      <span class="text-small text-muted">What the marketing is for, measured from the data Market already has</span>
+    </div>
+    <% if @goals.any? %>
+      <ul class="divided market-goals">
+        <% @goals.each do |goal| %>
+          <%# herb:key goal.id %>
+          <%= render "market/goals/goal", goal: goal, can_write: can_write %>
+        <% end %>
+      </ul>
+    <% else %>
+      <p class="text-small text-muted">No goals yet. Set one or two: more calls from Google, a search's top 3 on Maps, being named when people ask an AI. The plan, the suggestions and the report all aim at them.</p>
+    <% end %>
+    <% if can_write %>
+      <%= tag.details class: "market-closed", open: @goals.empty? do %>
+        <summary class="text-small">Set a goal</summary>
+        <%= render "market/goals/form" %>
+      <% end %>
+    <% end %>
+  </section>
+
   <section class="panel panel--padded stack stack--sm">
     <div class="row row--between">
       <h2 class="heading">The big picture</h2>
       <% if @plan&.ready? %>
-        <span class="text-small text-muted">Drafted <%= time_ago_in_words(@plan.finished_at || @plan.updated_at) %> ago<%= " by #{@plan.user.name.presence || @plan.user.email}" if @plan.user %></span>
+        <span class="text-small text-muted">Drafted by the AI <%= time_ago_in_words(@plan.finished_at || @plan.updated_at) %> ago</span>
       <% end %>
     </div>
     <% if @plan.nil? %>
       <p class="text-small text-muted">
-        No plan yet. <% if @settings.ai? %>Draft a plan has the AI write the state of the market, the angle to win on and the opportunities, best first, from the profile, the site and its competitors, the search data and the findings. The more of those there are, the better it is.<% else %><%= Market::Plan.ai_unavailable_reason %>. Opportunities can be added by hand below.<% end %>
+        <% if @settings.ai? %>Draft the plan, and the AI writes the state of the market, the angle to win on and the opportunities, best first, aimed at the goals, from everything Market knows. The more it knows (competitors, searches, search data), the better the plan.<% else %><%= Market::Plan.ai_unavailable_reason %>. Opportunities can be added by hand below, and come from findings.<% end %>
       </p>
     <% elsif @plan.working? then %>
       <p class="market-notice text-small" data-controller="refresh" data-refresh-interval-value="5"><%= icon_tag "refresh" %> Drafting the plan from everything known. A minute or two.</p>
@@ -36,98 +58,74 @@
           <p><strong><%= @plan.positioning %></strong></p>
         </div>
       <% end %>
-      <% competitors = @plan.new_competitor_suggestions %>
-      <% keywords = @plan.new_keyword_suggestions %>
-      <% if can_write && (@plan.industry_suggestion_new? || competitors.any? || keywords.any?) %>
-        <div class="stack stack--sm">
-          <span class="text-small text-muted">To check: suggestions, not facts</span>
-          <% if @plan.industry_suggestion_new? %>
-            <div class="row row--between market-suggestion">
-              <span class="grow"><strong>Industry: <%= @plan.industry_suggestion["name"] %><%= " (NAICS #{@plan.industry_suggestion["naics_code"]})" if @plan.industry_suggestion["naics_code"].present? %></strong>
-                <span class="text-small text-muted"><%= @plan.industry_suggestion["why"] %></span></span>
-              <%= button_to "Use it", market_profile_path, method: :patch, params: {profile: {industry: @plan.industry_suggestion["name"], naics_code: @plan.industry_suggestion["naics_code"]}}, class: "btn btn--sm" %>
-            </div>
-          <% end %>
-          <% competitors.each_with_index do |suggestion, index| %>
-            <%# herb:key index %>
-            <div class="row row--between market-suggestion">
-              <span class="grow"><strong><%= suggestion["name"] %></strong> <span class="text-small text-muted"><%= [suggestion["website"], suggestion["why"]].compact.join(" · ") %></span></span>
-              <%= link_to "Check and add", new_market_competitor_path(name: suggestion["name"], website: suggestion["website"]), class: "btn btn--sm" %>
-            </div>
-          <% end %>
-          <% if keywords.any? %>
-            <div class="row row--between market-suggestion">
-              <span class="grow"><strong>Searches to track</strong> <span class="text-small text-muted"><%= keywords.join(", ") %></span></span>
-              <%= button_to "Track them", market_keywords_path, params: {keyword: {keywords: keywords.join("\n"), source: "plan"}}, class: "btn btn--sm" %>
-            </div>
-          <% end %>
-        </div>
-      <% end %>
+      <%= render "market/plans/suggestions", plan: @plan if can_write %>
     <% end %>
   </section>
 
-  <section class="panel panel--padded stack stack--sm" id="opportunities">
-    <div class="row row--between">
-      <h2 class="heading">Opportunities</h2>
-      <span class="text-small text-muted">Most impact for least effort first</span>
-    </div>
-    <% if active.empty? %>
-      <p class="text-small text-muted">None open. Draft a plan, or add one.</p>
-    <% end %>
-    <% Market::Opportunity::HORIZONS.each do |horizon, label| %>
-      <%# herb:key horizon %>
-      <% rows = active.select { it.horizon == horizon } %>
-      <% next if rows.empty? %>
-      <h3 class="label"><%= label %></h3>
-      <ul class="divided">
-        <% rows.each do |opportunity| %>
-          <%# herb:key opportunity.id %>
-          <%= render "market/plans/opportunity", opportunity: opportunity, can_write: can_write, can_pages: can_pages %>
-        <% end %>
-      </ul>
-    <% end %>
-    <% if closed.any? %>
-      <details class="market-closed">
-        <summary class="text-small">Done and dismissed (<%= closed.size %>)</summary>
-        <ul class="divided">
-          <% closed.each do |opportunity| %>
-            <%# herb:key opportunity.id %>
-            <%= render "market/plans/opportunity", opportunity: opportunity, can_write: can_write, can_pages: can_pages %>
+  <turbo-frame id="market_plan" data-turbo-action="advance">
+    <div class="grid grid--2 market-split" id="opportunities">
+      <section class="panel" aria-label="Opportunities">
+        <nav class="market-tabs" aria-label="Show">
+          <% Market::PlansController::TABS.each do |tab, label| %>
+            <%# herb:key tab %>
+            <%= link_to market_plan_path(tab: ((tab == "open") ? nil : tab)), class: class_names("market-tab", "market-tab--current": @tab == tab), aria: {current: ((@tab == tab) ? "page" : nil)} do %>
+              <%= label %> <span class="text-muted"><%= @counts[tab] %></span>
+            <% end %>
           <% end %>
-        </ul>
-      </details>
-    <% end %>
-    <% if can_write %>
-      <details class="market-closed">
-        <summary class="text-small">Add an opportunity</summary>
-        <%= form_with url: market_opportunities_path, scope: :opportunity, class: "stack stack--sm market-add" do |form| %>
-          <%= form.text_field :title, placeholder: "What to do", required: true, aria: {label: "What to do"} %>
-          <%= form.text_area :detail, rows: 2, placeholder: "How", aria: {label: "How"} %>
-          <%= form.text_field :evidence, placeholder: "Why it's worth it", aria: {label: "Why it's worth it"} %>
-          <div class="cluster cluster--sm">
-            <%= form.select :channel, Market::Opportunity::CHANNELS.invert, {}, aria: {label: "Channel"} %>
-            <%= form.select :impact, Market::Opportunity::IMPACTS.map { ["#{it.capitalize} impact", it] }, {selected: "medium"}, aria: {label: "Impact"} %>
-            <%= form.select :effort, Market::Opportunity::EFFORTS.map { ["#{it.capitalize} effort", it] }, {selected: "medium"}, aria: {label: "Effort"} %>
-            <%= form.select :horizon, Market::Opportunity::HORIZONS.invert, {selected: "next"}, aria: {label: "When"} %>
-            <button type="submit" class="btn btn--sm">Add</button>
+        </nav>
+        <% if @opportunities.any? %>
+          <% groups = (@tab == "open") ? @opportunities.group_by { it.goal ? "For: #{it.goal.title}" : Market::Opportunity::HORIZONS[it.horizon] } : {nil => @opportunities} %>
+          <% groups.each do |label, rows| %>
+            <%# herb:key label.to_s %>
+            <% if label %><h3 class="label market-group-label"><%= label %></h3><% end %>
+            <ul class="divided">
+              <% rows.each do |opportunity| %>
+                <%# herb:key opportunity.id %>
+                <% current = opportunity == @opportunity %>
+                <li>
+                  <%= link_to market_plan_path(tab: ((@tab == "open") ? nil : @tab), item: opportunity.id), class: class_names("market-item", "market-item--current": current), aria: {current: (current ? "true" : nil)} do %>
+                    <span class="stack stack--2xs grow">
+                      <span class="text-ink"><%= opportunity.title %></span>
+                      <span class="text-small text-muted"><%= opportunity.channel_label %> · <%= opportunity.horizon_label %></span>
+                    </span>
+                    <% if opportunity.quick_win? %><span class="badge badge--success">Quick win</span><% else %><%= market_impact_tag opportunity %><% end %>
+                  <% end %>
+                </li>
+              <% end %>
+            </ul>
+          <% end %>
+        <% else %>
+          <p class="empty-state"><%= (@tab == "open") ? "None open. Draft the plan, make one from a finding, or add one." : "None." %></p>
+        <% end %>
+        <% if can_write && @tab == "open" %>
+          <details class="market-closed market-harness">
+            <summary class="text-small">Add an opportunity</summary>
+            <%= form_with url: market_opportunities_path, scope: :opportunity, class: "stack stack--sm market-add", data: {turbo_frame: "_top"} do |form| %>
+              <%= form.text_field :title, placeholder: "What to do", required: true, aria: {label: "What to do"} %>
+              <%= form.text_area :detail, rows: 2, placeholder: "How", aria: {label: "How"} %>
+              <div class="cluster cluster--sm">
+                <%= form.select :channel, Market::Opportunity::CHANNELS.invert, {}, aria: {label: "Channel"} %>
+                <%= form.select :impact, Market::Opportunity::IMPACTS.map { ["#{it.capitalize} impact", it] }, {selected: "medium"}, aria: {label: "Impact"} %>
+                <%= form.select :effort, Market::Opportunity::EFFORTS.map { ["#{it.capitalize} effort", it] }, {selected: "medium"}, aria: {label: "Effort"} %>
+                <%= form.select :horizon, Market::Opportunity::HORIZONS.invert, {selected: "now"}, aria: {label: "When"} %>
+                <% if @goals.any? %><%= form.select :goal_id, [["No goal", ""]] + @goals.map { [it.title, it.id] }, {}, aria: {label: "Goal"} %><% end %>
+                <button type="submit" class="btn btn--sm">Add</button>
+              </div>
+            <% end %>
+          </details>
+        <% end %>
+      </section>
+
+      <section class="panel panel--padded market-detail" aria-label="The opportunity">
+        <% if @opportunity %>
+          <%= render "market/opportunities/detail", opportunity: @opportunity, can_write: can_write, back: back %>
+        <% else %>
+          <div class="stack stack--sm market-detail__empty">
+            <%= icon_tag "check-circle", class: "text-faint" %>
+            <p class="text-muted">Open an opportunity to work it out and act on it.</p>
           </div>
         <% end %>
-      </details>
-    <% end %>
-  </section>
-
-  <% if @plans.size > 1 %>
-    <section class="panel panel--padded stack stack--sm">
-      <h2 class="heading">Earlier plans</h2>
-      <ul class="divided">
-        <% @plans.drop(1).each do |plan| %>
-          <%# herb:key plan.id %>
-          <li class="stack stack--xs market-row">
-            <strong class="text-small"><%= l plan.created_at.to_date, format: :long %> · <%= plan.state %></strong>
-            <% if plan.ready? %><p class="text-small text-muted market-text"><%= plan.summary %></p><% end %>
-          </li>
-        <% end %>
-      </ul>
-    </section>
-  <% end %>
+      </section>
+    </div>
+  </turbo-frame>
 </div>

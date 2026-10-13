@@ -10,7 +10,7 @@ module Market
 
     def search_findings
       [*ai_not_named, ai_named_instead, ai_cited_sites, ai_share_of_voice, *profile_findings, *health_findings, web_mentions_gap, questions_to_answer,
-        *review_findings, *link_findings].compact
+        *review_findings, *link_findings, *profile_activity, *seasons].compact
     end
 
     def ai_checks = @ai_checks ||= Market::AiCheck.latest_for(keywords)
@@ -177,6 +177,37 @@ module Market
           channel: "seo", evidence: {"sites" => gap["sites"].first(12).map { it.slice("domain", "links_to", "rank") }})
       end
       found
+    end
+
+    # The Business Profile: customers' questions no one answered, and competitors posting while it doesn't.
+    def profile_activity
+      found = []
+      qa = own_latest("gbp_qa")&.data
+      if qa && qa["unanswered"].to_i.positive?
+        found << finding("gbp_questions", "gbp_questions", "medium", "#{qa["unanswered"]} customer #{(qa["unanswered"].to_i == 1) ? "question" : "questions"} on the Google profile #{(qa["unanswered"].to_i == 1) ? "has" : "have"} no answer",
+          detail: "Answer them on the profile: the next customer reads them, Google shows them, and AI answers use them.", channel: "local",
+          evidence: {"questions" => Array(qa["questions"]).select { it["answers"].zero? }.first(8).map { it["question"] }})
+      end
+      own = own_latest("gbp_posts")&.data&.dig("last_90_days").to_i
+      busiest = competitors.filter_map { |competitor| latest("gbp_posts", competitor)&.data&.then { [competitor, it["last_90_days"].to_i] } }.max_by(&:last)
+      if busiest && busiest[1] >= 3 && own < busiest[1] / 2
+        found << finding("gbp_posts", "gbp_posts", "low", "#{busiest[0].name} posted on Google #{busiest[1]} times in 90 days, #{name} #{own}",
+          detail: "Posts (offers, news, work done) keep a profile fresh for Maps and give customers a reason to call. The content calendar can post to it.", channel: "local",
+          evidence: {"competitor" => busiest[0].name, "competitor_posts" => busiest[1], "own_posts" => own})
+      end
+      found
+    end
+
+    # Searches coming into season: a tracked search (or one worth writing about) that peaks within three months.
+    def seasons
+      facts = own_latest("keyword_facts")&.data&.dig("keywords").to_h.map { |keyword, fact| [keyword, Market::Seasons.peak(fact["months"])] }
+      ideas = Array(own_latest("content_ideas")&.data&.dig("ideas")).map { [it["keyword"], it["peak"]] }
+      soon = (facts + ideas).select { |_, peak| peak.is_a?(Hash) && ((peak["month"].to_i - Date.current.month) % 12).between?(1, 3) }.uniq(&:first).first(8)
+      return [] if soon.empty?
+
+      [finding("seasons", "seasons", "medium", "#{soon.size} #{(soon.size == 1) ? "search peaks" : "searches peak"} in the next three months",
+        detail: "Publish for them now, while there's time to rank: #{soon.first(3).map { |keyword, peak| "“#{keyword}” peaks in #{Market::Seasons.month_name(peak["month"])}" }.join("; ")}.",
+        channel: "content", evidence: {"searches" => soon.map { |keyword, peak| {"search" => keyword, "peaks" => Market::Seasons.month_name(peak["month"]), "lift" => "+#{peak["lift"]}%"} }})]
     end
 
     # The questions people also ask for the tracked searches the site ranks with a page for.

@@ -2,7 +2,7 @@
 
 module Market
   module Api
-    # GET /api/market: the market at a glance.
+    # GET /api/market: the market at a glance: the goals, what to do next, the findings, opportunities and changes.
     class OverviewController < BaseController
       requires_capability "market:read", only: :show
 
@@ -14,6 +14,8 @@ module Market
           .latest_first.includes(:competitor).limit(20).to_a
         @own = Reading.own_latest
         @competitors = Competitor.count
+        @goals = Goal.active.ordered.includes(:keyword).to_a
+        @guide = Guide.new(profile: @profile)
       end
     end
   end

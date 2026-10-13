@@ -13,12 +13,34 @@ class Market::Plan::Brief
   end
 
   def to_s
-    [business_part, content_part, own_site_part, competitors_part, search_part, rankings_part, local_part, findings_part, work_part].compact.join("\n\n")
+    [business_part, goals_part, content_part, own_site_part, competitors_part, search_part, rankings_part, local_part, ai_part, findings_part, work_part].compact.join("\n\n")
   end
 
   private
 
   attr_reader :profile, :competitors, :readings, :search
+
+  # The goals, with where each stands: every opportunity should serve one.
+  def goals_part
+    goals = Market::Goal.active.ordered.to_a
+    return "Goals: none set. Aim at more customers from search, maps and AI generally." if goals.empty?
+
+    "Goals (give each opportunity the id of the goal it serves):\n" + goals.map do |goal|
+      "goal #{goal.id}: #{goal.title}: now #{goal.describe(goal.current)}, target #{goal.describe(goal.target)}#{" by #{goal.due_on.to_fs(:long)}" if goal.due_on}" \
+        "#{" (behind pace)" if goal.on_pace? == false}#{" — #{goal.why}" if goal.why.present?}"
+    end.join("\n")
+  end
+
+  # How the AIs answer the tracked searches: named or not, and who instead.
+  def ai_part
+    overview = Market::Search::Overview.new
+    return unless overview.ai_checked?
+
+    lines = overview.ai_summary.map { |platform, counts| "#{Market::AiCheck.platform_name(platform)}: named the business in #{counts[:named]} of #{counts[:answered]} answers, cited its site in #{counts[:cited]}" }
+    ["AI search (each tracked search asked of each AI):", *lines,
+      "Named instead: #{overview.ai_named_others.map { "#{it[0]} (#{it[1]})" }.join(", ").presence || "no one"}",
+      "Sites the AIs cite: #{overview.ai_cited_domains.first(8).map(&:first).join(", ").presence || "none"}"].join("\n")
+  end
 
   def business_part
     lines = ["Business: #{profile.business_name}", "Website: #{profile.website || "not set"}"]

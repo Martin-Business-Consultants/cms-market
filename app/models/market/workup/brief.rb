@@ -70,7 +70,8 @@ class Market::Workup::Brief
     ["The business: #{profile.business_name} (#{profile.website})",
       *Market::Profile::FIELDS.filter_map { |field| "#{Market::Profile::LABELS[field]}: #{profile.public_send(field)}" if profile.public_send(field) },
       ("The plan's big picture: #{plan.summary}" if plan&.summary.present?),
-      ("The angle to win on: #{plan.positioning}" if plan&.positioning.present?)].compact.join("\n")
+      ("The angle to win on: #{plan.positioning}" if plan&.positioning.present?),
+      *Market::Goal.active.ordered.map { "Goal: #{it.title}, now #{it.describe(it.current)}, target #{it.describe(it.target)}#{" by #{it.due_on.to_fs(:long)}" if it.due_on}" }].compact.join("\n")
   end
 
   def facts

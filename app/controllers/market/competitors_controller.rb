@@ -23,6 +23,7 @@ module Market
     def show
       @readings = @competitor.readings.to_a
       @steps = Competitor::NextSteps.new(@competitor)
+      @search = SearchSnapshot.latest_by_site([@competitor.id]).fetch(@competitor.id, {}).transform_values { it.first&.data }
     end
 
     def new
