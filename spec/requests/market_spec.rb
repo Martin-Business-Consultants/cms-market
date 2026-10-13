@@ -390,6 +390,16 @@ RSpec.describe "Market", type: :request do
       expect(Market::Opportunity.last.title).to eq("Post weekly on the profile")
     end
 
+    it "holds every caller to its role: a reader can't change anything" do
+      reader = create(:user, admin: false, role: create(:role, permissions: %w[market:read]))
+      get "/api/market/findings", headers: api_headers(reader)
+      expect(response).to have_http_status(:ok)
+      post "/api/market/keywords", params: {keyword: {keywords: "plumber"}}, headers: api_headers(reader), as: :json
+      expect(response).to have_http_status(:forbidden)
+      post "/api/market/plans", headers: api_headers(reader), as: :json
+      expect(response).to have_http_status(:forbidden)
+    end
+
     it "is listed in the manifest" do
       get "/api/manifest", headers: headers
 
