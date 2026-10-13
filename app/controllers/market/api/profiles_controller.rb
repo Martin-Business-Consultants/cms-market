@@ -12,7 +12,7 @@ module Market
       end
 
       def update
-        @profile = Profile.update(params.require(:profile).permit(*Profile::FIELDS))
+        @profile = Profile.update(params.require(:profile).permit(*Profile::FIELDS, *Profile::LOCAL_FIELDS))
         Finding.refresh_later
         render :show
       end

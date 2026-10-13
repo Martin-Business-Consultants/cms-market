@@ -31,6 +31,36 @@
       <%= form.text_field :search_location, value: @profile.search_location %>
     <% end %>
   </section>
+  <section class="panel panel--padded fields">
+    <div class="stack stack--xs">
+      <h2 class="heading">Local search</h2>
+      <p class="text-muted">Where the business's customers are: a ZIP and a radius. Every pull checks each tracked search on Google Maps from a grid of points across that area, and searches Google from the ZIP rather than the whole country.</p>
+    </div>
+    <% if @profile.local_error %>
+      <p class="text-small text-danger" role="alert"><%= @profile.local_error %></p>
+    <% elsif @profile.local? %>
+      <p class="text-small text-muted">Centred on <%= @profile.local_place %> (<%= @profile.local_center.join(", ") %>).</p>
+    <% end %>
+    <div class="grid grid--3 fields-grid">
+      <%= settings_field "ZIP or postcode" do %>
+        <%= form.text_field :local_zip, value: @profile.local_zip, autocomplete: "postal-code" %>
+      <% end %>
+      <%= settings_field "Country", hint: "Two letters: us, ca, gb…" do %>
+        <%= form.text_field :local_country, value: @profile.local_country, maxlength: 2 %>
+      <% end %>
+      <%= settings_field "Radius" do %>
+        <%= form.select :local_radius_miles, Market::Profile::RADII.map { ["#{it} #{"mile".pluralize(it)}", it] }, selected: @profile.local_radius_miles.to_i %>
+      <% end %>
+    </div>
+    <div class="grid grid--2 fields-grid">
+      <%= settings_field "Grid", hint: "Points checked per search, per pull: more is finer, and costs more." do %>
+        <%= form.select :local_grid, Market::Profile::GRIDS.map { ["#{it} × #{it} (#{it * it} points)", it] }, selected: @profile.local_grid %>
+      <% end %>
+      <%= settings_field "Name on Google Maps", hint: "To find the business among the results, beside its website." do %>
+        <%= form.text_field :maps_name, value: @profile.maps_name %>
+      <% end %>
+    </div>
+  </section>
   <div class="cluster">
     <button type="submit" class="btn btn--primary">Save</button>
     <%= link_to "Cancel", market_overview_path, class: "btn" %>

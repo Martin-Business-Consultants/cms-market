@@ -13,7 +13,7 @@ class Market::Plan::Brief
   end
 
   def to_s
-    [business_part, content_part, own_site_part, competitors_part, search_part, rankings_part, findings_part, work_part].compact.join("\n\n")
+    [business_part, content_part, own_site_part, competitors_part, search_part, rankings_part, local_part, findings_part, work_part].compact.join("\n\n")
   end
 
   private
@@ -22,6 +22,7 @@ class Market::Plan::Brief
 
   def business_part
     lines = ["Business: #{profile.business_name}", "Website: #{profile.website || "not set"}"]
+    lines << "Local area: within #{profile.local_radius_miles.to_i} miles of #{profile.local_zip} (#{profile.local_place})" if profile.local?
     Market::Profile::FIELDS.each { |field| lines << "#{Market::Profile::LABELS[field]}: #{profile.public_send(field)}" if profile.public_send(field) }
     lines.join("\n")
   end
@@ -81,6 +82,20 @@ class Market::Plan::Brief
         "#{"; #{others.join(", ")}" if others.any?}#{"; also on the page: #{ranking.features.join(", ")}" if ranking.features.any?}"
     end
     "Tracked searches:\n#{rows.join("\n")}" if rows.any?
+  end
+
+  # Each tracked search on Google Maps across the ZIP's grid.
+  def local_part
+    rows = search.tracked.filter_map do |row|
+      scan = row[:local] or next
+      leaders = scan.leaders.first(3).map { "#{it["title"]} (top 3 at #{it["top3_points"]})" }
+      "- “#{row[:keyword].keyword}”: average position #{scan.average_position}, top 3 at #{(scan.top3_share * scan.points.size).round} of #{scan.points.size} points" \
+        "#{", not found at #{scan.points.size - scan.found_points}" if scan.found_points < scan.points.size}#{"; leaders: #{leaders.join(", ")}" if leaders.any?}"
+    end
+    return if rows.empty?
+
+    profile = Market::Profile.current
+    "Local search on Google Maps, a #{profile.local_grid}x#{profile.local_grid} grid within #{profile.local_radius_miles.to_i} miles of #{profile.local_zip}:\n#{rows.join("\n")}"
   end
 
   def findings_part

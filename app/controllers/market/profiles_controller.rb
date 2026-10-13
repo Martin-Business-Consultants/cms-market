@@ -10,7 +10,7 @@ module Market
     end
 
     def update
-      Profile.update(params.require(:profile).permit(*Profile::FIELDS))
+      Profile.update(params.require(:profile).permit(*Profile::FIELDS, *Profile::LOCAL_FIELDS))
       Finding.refresh_later
       redirect_to market_overview_path, notice: "Profile saved"
     end

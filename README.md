@@ -27,6 +27,14 @@ The big picture behind the site's SEO and marketing, beside the site it's about.
     it got;
   - **without buying twice:** a part pulled in the last day isn't paid for again;
   - **when you choose:** when someone asks, or every week or month.
+- **Local search** works from a ZIP (or postcode) and a radius in miles (Market › Profile), not the whole
+  country. On every pull, each tracked search is checked on Google Maps from a grid of points across the
+  area (3×3, 5×5 or 7×7). The Search page shows each grid with the business's map position at every
+  point: green for the top 3, amber for 4 to 10, red for further or not found. Beside it are the average
+  position, the share of points it's in the top 3 at, and who leads the most points. Organic searches
+  run from the ZIP too. The ZIP is located once with OpenStreetMap, and the business is found among the
+  map results by its website or its name on Google Maps. Findings flag a search where it isn't on the map
+  anywhere in the area, where it's weak across much of it, and where it slips.
 - **Findings** say what all of it means, with the exact figures and where they came from. For example:
   keywords a competitor is on page one for and the site isn't, search traffic falling or a competitor's
   surging, tracked searches dropping, competitors outranking, running ads, publishing or with a page per

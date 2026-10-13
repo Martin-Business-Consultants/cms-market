@@ -7,7 +7,7 @@ module Market
     # for the place a client's customers search from. `CEILINGS` are the most each call is
     # allowed to cost, for the budget check: generous on purpose, the ledger keeps what it did.
     class Api
-      CEILINGS = {overview: 0.05, keywords: 0.25, competitors: 0.10, backlinks: 0.10, ranking: 0.02}.freeze
+      CEILINGS = {overview: 0.05, keywords: 0.25, competitors: 0.10, backlinks: 0.10, ranking: 0.02, maps: 0.02}.freeze
       RANKING_DEPTH = 30
 
       def initialize(client:, setting: Market::Settings.current)
@@ -67,13 +67,25 @@ module Market
       # Google's results for one keyword, searched from `location` (a DataForSEO location name,
       # "Grand Rapids,Michigan,United States"): who's where in the organic results, and what
       # else is on the page (a map pack, ads, questions).
+      # `location` is a DataForSEO location name, or [lat, lng] to search from that point.
       def ranking(keyword, location:)
-        task = {keyword: keyword, location_name: location, language_code: @setting.language_code, depth: RANKING_DEPTH}
+        where = location.is_a?(Array) ? {location_coordinate: "#{location[0]},#{location[1]},200"} : {location_name: location}
+        task = {keyword: keyword, **where, language_code: @setting.language_code, depth: RANKING_DEPTH}
         result = @client.post("serp/google/organic/live/regular", task, target: keyword, ceiling: CEILINGS[:ranking]).first || {}
         {"results" => Array(result["items"]).select { it["type"] == "organic" }.map do |item|
             {"position" => item["rank_group"], "domain" => Market::Probe.normalize(item["domain"]), "url" => item["url"], "title" => item["title"].to_s.truncate(120)}
           end,
           "features" => Array(result["item_types"]) - ["organic"]}
+      end
+
+      # Google Maps' results for one search from one point: who's where, with their rating.
+      def maps(keyword, lat:, lng:, zoom:)
+        task = {keyword: keyword, location_coordinate: "#{lat},#{lng},#{zoom}z", language_code: @setting.language_code, depth: Market::LocalScan::DEPTH}
+        result = @client.post("serp/google/maps/live/advanced", task, target: keyword, ceiling: CEILINGS[:maps]).first || {}
+        Array(result["items"]).select { it["type"] == "maps_search" }.map do |item|
+          {"position" => item["rank_group"], "title" => item["title"].to_s.truncate(120), "domain" => Market::Probe.normalize(item["domain"]),
+           "rating" => item.dig("rating", "value"), "reviews" => item.dig("rating", "votes_count"), "category" => item["category"]}.compact
+        end
       end
 
       private

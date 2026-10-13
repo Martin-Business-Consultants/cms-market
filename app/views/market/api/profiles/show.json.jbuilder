@@ -5,3 +5,4 @@ json.website @profile.website
 json.domain @profile.domain
 json.merge! @profile.to_h
 json.missing @profile.gaps
+json.local @profile.local_h

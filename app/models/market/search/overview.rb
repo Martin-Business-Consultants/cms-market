@@ -19,6 +19,7 @@ class Market::Search::Overview
     @competitors = Market::Competitor.watchable.by_threat.to_a
     @keywords = Market::Keyword.ordered.to_a
     @rankings = Market::Ranking.latest_for(@keywords)
+    @local = Market::LocalScan.latest_for(@keywords)
     @snapshots = Market::SearchSnapshot.latest_by_site(@competitors.map(&:id))
     @last_pull = Market::SearchPull.latest_first.first
   end
@@ -28,6 +29,7 @@ class Market::Search::Overview
   end
 
   def pulled? = sites.any?(&:pulled?)
+  def local_scanned? = @local.any?
   def competitor_sites = sites.reject(&:own?)
 
   # Each tracked search: the site's position now and before, its page, and each competitor's position now.
@@ -35,7 +37,9 @@ class Market::Search::Overview
     pages = Page.where(path: rankings.values.filter_map { it.first&.page_path }.uniq).index_by(&:path)
     keywords.map do |keyword|
       now, before = rankings[keyword.id]
+      local, local_before = @local[keyword.id]
       {keyword: keyword, ranking: now, position: now&.position, before: before&.position, page: now&.page_path && pages[now.page_path],
+       local: local, local_before: local_before,
        competitors: competitor_sites.to_h { [it.domain, now&.position_of(it.domain)] }}
     end
   end

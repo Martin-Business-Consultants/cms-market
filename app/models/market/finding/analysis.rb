@@ -18,6 +18,7 @@ module Market
       @search = @competitors.to_h { [it, all.fetch(it.id, {})] }
       @keywords = Market::Keyword.ordered.to_a
       @rankings = Market::Ranking.latest_for(@keywords)
+      @local = Market::LocalScan.latest_for(@keywords)
       @setting = Market::Settings.current
       @name = @profile.business_name
     end
@@ -25,7 +26,7 @@ module Market
     def findings
       [profile_gaps, no_competitors, *keyword_gaps, ground, *competitor_surges, ranking_drops, outranked, not_ranking, map_pack,
         competitor_ads, location_pages, content_freshness, conversion_tools, unwatched_search_competitors, backlinks_gap,
-        *site_changes, stale_site, stale_search].compact
+        *site_changes, *local_findings, stale_site, stale_search].compact
     end
 
     private
@@ -274,6 +275,37 @@ module Market
         finding("site_changes:#{competitor.domain}", "site_changes", "info", "#{competitor.name} changed their website: #{snapshot.differences.first.downcase_first}",
           detail: snapshot.differences.join("; "), evidence: {"competitor" => competitor.name, "changes" => snapshot.differences},
           sources: [source(snapshot, "site_reading")])
+      end
+    end
+
+    # Local search: each tracked search across the ZIP's grid --------------------------------
+    def local_findings
+      keywords.filter_map do |keyword|
+        now, before = @local[keyword.id]
+        next unless now
+
+        points = now.points.size
+        where = "within #{now.radius_miles.to_i} miles of #{now.zip}"
+        evidence = {"keyword" => keyword.keyword, "zip" => now.zip, "radius_miles" => now.radius_miles, "grid" => "#{now.grid}x#{now.grid}",
+                    "average_position" => now.average_position, "top3_share" => now.top3_share, "found_points" => now.found_points, "points" => points,
+                    "weak_points" => now.points.reject { it["position"].to_i.between?(1, 3) }.map { it.slice("row", "col", "position") },
+                    "leaders" => now.leaders, "average_before" => before&.average_position}
+        sources = [{"type" => "local_scan", "id" => now.id, "at" => now.checked_at.iso8601}]
+        leader = now.leaders.first
+        if now.missed?
+          finding("local:#{keyword.id}", "local_missing", "high", "#{name} isn't on Google Maps for “#{keyword.keyword}” anywhere #{where}",
+            channel: "local", detail: "Not in the top #{Market::LocalScan::DEPTH} at any of #{points} points.#{" #{leader["title"]} is top 3 at #{leader["top3_points"]}." if leader} " \
+              "Check the Google Business Profile's categories, service area and name (Market › Profile has the name it's matched by).",
+            evidence: evidence, sources: sources)
+        elsif now.top3_share < 0.5
+          finding("local:#{keyword.id}", "local_weak", (now.top3_share < 0.2) ? "high" : "medium",
+            "#{name} is in Google's map top 3 for “#{keyword.keyword}” at #{(now.top3_share * points).round} of #{points} points #{where}",
+            channel: "local", detail: "Average position #{now.average_position} (a miss counts as #{Market::LocalScan::MISS}).#{" #{leader["title"]} is top 3 at #{leader["top3_points"]}." if leader}",
+            evidence: evidence, sources: sources)
+        elsif before && now.average_position - before.average_position >= 2
+          finding("local:#{keyword.id}", "local_slipping", "medium", "#{name} slipped on the map for “#{keyword.keyword}” #{where}",
+            channel: "local", detail: "Average position #{before.average_position} → #{now.average_position}.", evidence: evidence, sources: sources)
+        end
       end
     end
 

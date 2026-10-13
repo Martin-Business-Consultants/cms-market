@@ -8,6 +8,7 @@ class Market::Keyword < ApplicationRecord
   MAX = 100
 
   has_many :rankings, -> { order(checked_at: :desc, id: :desc) }, dependent: :delete_all
+  has_many :local_scans, -> { order(checked_at: :desc, id: :desc) }, dependent: :delete_all
 
   normalizes :keyword, with: ->(keyword) { keyword.strip.squeeze(" ").downcase }
 

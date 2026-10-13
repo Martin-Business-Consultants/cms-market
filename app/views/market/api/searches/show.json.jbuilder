@@ -4,6 +4,7 @@ settings = Market::Settings.current
 json.summary @data.pulled? ? "Search data from DataForSEO (#{settings.country}), pulled #{@data.last_pull&.finished_at&.to_date&.to_fs(:long)}" : "No search data yet"
 json.country settings.country
 json.search_location @data.profile.search_location
+json.local_area @data.profile.local_h
 json.last_pull do
   if @data.last_pull
     json.extract! @data.last_pull, :id, :state, :error, :notes, :finished_at
@@ -37,5 +38,13 @@ json.tracked @data.tracked do |row|
   json.page row[:page] ? {path: row[:page].path, title: row[:page].title, status: row[:page].status} : nil
   json.competitors row[:competitors]
   json.on_the_page row[:ranking]&.features || []
+  if (scan = row[:local])
+    json.local do
+      json.extract! scan, :zip, :radius_miles, :grid, :average_position, :top3_share, :found_points, :leaders, :points, :checked_at
+      json.average_position_before row[:local_before]&.average_position
+    end
+  else
+    json.local nil
+  end
 end
 json.also_competing_in_search @data.unwatched

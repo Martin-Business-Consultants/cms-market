@@ -17,6 +17,11 @@ module MarketHelpers
     Market::Reading.take(competitor, probe: FakeProbe.new(domain, market_facts(domain: domain, **options)))
   end
 
+  # A geocoder answering one place for every ZIP.
+  module FakeGeocoder
+    def self.locate(zip, country: "us") = {lat: 42.9632, lng: -85.6528, place: "#{zip}, Grand Rapids, Michigan, United States"}
+  end
+
   def site_address(url = "https://acme.example") = Setting.set("general", "site_base_url" => url, "title" => "Acme Plumbing")
 
   def connect_search(budget_cents: 2500, **settings)
@@ -50,8 +55,8 @@ module MarketHelpers
   class FakeApi
     attr_reader :calls
 
-    def initialize(traffic: {}, keywords: {}, competitors: [], rankings: {}, failures: {})
-      @traffic, @keywords, @competitors, @rankings, @failures = traffic, keywords, competitors, rankings, failures
+    def initialize(traffic: {}, keywords: {}, competitors: [], rankings: {}, failures: {}, maps: ->(_keyword, _lat, _lng) { [] })
+      @traffic, @keywords, @competitors, @rankings, @failures, @maps = traffic, keywords, competitors, rankings, failures, maps
       @calls = []
     end
 
@@ -59,7 +64,8 @@ module MarketHelpers
     def keywords(domain) = answer("keywords:#{domain}") { {"total" => @keywords.fetch(domain, []).size, "keywords" => @keywords.fetch(domain, [])} }
     def competitors(domain) = answer("competitors:#{domain}") { {"competitors" => @competitors} }
     def backlinks(domain) = answer("backlinks:#{domain}") { {"referring_domains" => 10} }
-    def ranking(keyword, location:) = answer("ranking:#{keyword}") { {"results" => @rankings.fetch(keyword, []), "features" => ["local_pack"]} }
+    def ranking(keyword, location:) = answer("ranking:#{keyword}") { {"results" => @rankings.fetch(keyword, []), "features" => ["local_pack"], "location" => location} }
+    def maps(keyword, lat:, lng:, zoom:) = answer("maps:#{keyword}") { @maps.call(keyword, lat, lng) }
 
     private
 

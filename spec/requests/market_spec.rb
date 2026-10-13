@@ -81,6 +81,24 @@ RSpec.describe "Market", type: :request do
       expect(response).to redirect_to(edit_page_path(page.path))
     end
 
+    it "shows each search's grid on the map, and saves the ZIP and radius" do
+      Market::Profile.update({"local_zip" => "49503", "local_grid" => "3"}, MarketHelpers::FakeGeocoder)
+      keyword = Market::Keyword.track("plumber").first.first
+      points = Market::LocalGrid.points([42.9632, -85.6528], radius_miles: 10, size: 3).each_with_index.map { |point, index| {point: point, results: [{"position" => index + 1, "title" => "Acme Plumbing"}]} }
+      Market::LocalScan.from_results(keyword: keyword, profile: Market::Profile.current, answers: points).save!
+
+      get market_search_path
+      expect(response.body).to include("3 × 3 points within 10 miles of 49503", "Average <strong>5.0</strong>")
+      expect(response.body.scan("market-grid__cell--top").size).to eq(3)
+
+      get edit_market_profile_path
+      expect(response.body).to include("ZIP or postcode", "Centred on 49503, Grand Rapids")
+
+      get "/api/market/search", headers: api_headers(admin)
+      expect(response.parsed_body["tracked"].first["local"]).to include("zip" => "49503", "average_position" => 5.0, "found_points" => 9)
+      expect(response.parsed_body["local_area"]).to include("zip" => "49503", "radius_miles" => 10.0)
+    end
+
     it "keeps secrets out of Settings › Market" do
       patch settings_market_path, params: {market: {dataforseo_login: "api@example.com", dataforseo_password: "secret-pass", monthly_budget_dollars: "40.50",
                                                     refresh: "weekly"}}

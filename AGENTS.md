@@ -18,6 +18,10 @@ This repository is a plugin for the Libre Publish CMS: a Rails engine loaded int
   `SearchRequest` ledger) with a ceiling first, records every call, retries what may pass with
   backoff, and raises `AuthError`, `FundsError` and `BudgetError` (which stop a pull) or
   `InvalidError` and `UnavailableError` (which skip a part). `Market::SearchPull#run!` never raises.
+- Local search: `Market::Profile` holds a ZIP, radius and grid; `Market::Geocoder` locates the ZIP
+  once (OpenStreetMap). `Market::LocalGrid` lays the points; `SearchPull#local_scans` asks
+  `Search::Api#maps` at each (Google Maps, a point and zoom) and keeps a `Market::LocalScan` per
+  search. Organic rankings use the ZIP's centre as `location_coordinate` when it's set.
 - `Market::Finding.refresh` upserts what `Finding::Analysis` works out by stable key, moves
   `changed_at` only on a change, and resolves what stops holding. It runs after every reading and
   pull, after profile and competitor changes, and nightly. `GET /api/market/findings?since=` is
