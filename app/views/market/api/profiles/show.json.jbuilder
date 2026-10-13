@@ -6,3 +6,4 @@ json.domain @profile.domain
 json.merge! @profile.to_h
 json.missing @profile.gaps
 json.local @profile.local_h
+json.to_check @profile.ai_filled

@@ -13,6 +13,7 @@ module Market
         admin = proc do
           get "market", to: "market/overview#show", as: :market_overview
           scope "market", module: "market", as: "market" do
+            resource :intake, only: [:new, :create, :show]
             resource :profile, only: [:edit, :update]
             resource :site_check, only: :create
             resources :competitors do
@@ -42,6 +43,7 @@ module Market
         scope "api", defaults: {format: :json} do
           get "market", to: "market/api/overview#show", as: :api_market
           scope "market", module: "market/api", as: "api_market" do
+            resource :intake, only: [:show, :create]
             resource :profile, only: [:show, :update]
             resources :findings, only: [:index, :update] do
               post :refresh, on: :collection
@@ -97,6 +99,8 @@ module Market
         description: "What the data says, worst first: each finding's stable key, kind, severity, channel, title, detail, exact evidence and sources. " \
                      "?since=<ISO time> answers only what appeared, changed, resolved or was dismissed after it (pass back as_of); ?state, ?severity, ?kind, ?channel. " \
                      "PATCH /api/market/findings/:id {\"finding\":{\"state\":\"dismissed\"|\"open\"}}; POST /api/market/findings/refresh."
+      Cms::Plugins.api :market, "/api/market/intake",
+        description: "The starting point: POST {\"intake\":{\"business_name\",\"website\",\"local_zip\",\"about\"}} saves them and has the AI fill in the rest of the profile from the site (a minute or two); GET answers the latest: what it filled, its summary, and the competitors and searches it suggests checking."
       Cms::Plugins.api :market, "/api/market/profile", description: "The business's market profile: industry, area, offerings, audience, positioning, goals, search_location."
       Cms::Plugins.api :market, "/api/market/competitors",
         description: "Competitors with their latest website reading and changes: list, show, create (name, website, kind, threat), update, delete. POST /api/market/competitors/:id/check reads one now; POST /api/market/site_check reads the site."

@@ -205,6 +205,10 @@
     color: white;
   }
 
+  .market-start {
+    border-color: var(--accent-200);
+  }
+
   .market-closed > summary {
     cursor: pointer;
     font-weight: var(--weight-medium);

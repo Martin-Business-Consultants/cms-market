@@ -99,6 +99,34 @@ RSpec.describe "Market", type: :request do
       expect(response.parsed_body["local_area"]).to include("zip" => "49503", "radius_miles" => 10.0)
     end
 
+    it "starts with a short intake, and shows what the AI filled in" do
+      get market_overview_path
+      expect(response.body).to include("Get started")
+      get new_market_intake_path
+      expect(response).to have_http_status(:ok)
+
+      switch_plugin :ai, on: true
+      Ai::Settings.update("provider" => "opencode", "api_key" => "zen-key")
+      expect { post market_intake_path, params: {intake: {business_name: "Acme Plumbing", website: "https://acme.example"}} }.to have_enqueued_job(Market::IntakeJob)
+      expect(response).to redirect_to(market_intake_path)
+      get market_intake_path
+      expect(response.body).to include("Reading acme.example")
+
+      Market::Intake.last.update!(state: "ready", summary: "A plumber.", filled: ["industry"], competitor_suggestions: [{"name" => "Drain Kings"}], keyword_suggestions: ["plumber"])
+      Market::Profile.fill_in("industry" => "Plumbing")
+      get market_intake_path
+      expect(response.body).to include("A plumber.", "Drain Kings", "Searches to track")
+      get edit_market_profile_path
+      expect(response.body).to include("The AI filled in industry: check them")
+    end
+
+    it "saves the answers and sends you to the profile when the AI isn't set up" do
+      post market_intake_path, params: {intake: {business_name: "Acme Plumbing"}}
+
+      expect(response).to redirect_to(edit_market_profile_path)
+      expect(flash[:alert]).to include("fill in the rest here")
+    end
+
     it "keeps secrets out of Settings › Market" do
       patch settings_market_path, params: {market: {dataforseo_login: "api@example.com", dataforseo_password: "secret-pass", monthly_budget_dollars: "40.50",
                                                     refresh: "weekly"}}
@@ -205,6 +233,19 @@ RSpec.describe "Market", type: :request do
       Ai::Settings.update("provider" => "opencode", "api_key" => "zen-key")
       expect { post "/api/market/plans", headers: headers, as: :json }.to have_enqueued_job(Market::PlanJob)
       expect(response).to have_http_status(:accepted)
+    end
+
+    it "starts the intake and reads it back" do
+      switch_plugin :ai, on: true
+      Ai::Settings.update("provider" => "opencode", "api_key" => "zen-key")
+
+      post "/api/market/intake", params: {intake: {business_name: "Acme Plumbing", website: "acme.example"}}, headers: headers, as: :json
+      expect(response).to have_http_status(:accepted)
+      expect(response.parsed_body).to include("state" => "queued")
+      expect(response.parsed_body["profile"]).to include("business_name" => "Acme Plumbing", "website" => "https://acme.example")
+
+      get "/api/market/intake", headers: headers
+      expect(response.parsed_body["answers"]).to include("business_name" => "Acme Plumbing")
     end
 
     it "is listed in the manifest" do

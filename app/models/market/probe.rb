@@ -106,6 +106,24 @@ module Market
         "last_changed" => dates.max&.iso8601, "sample" => entries.first(8).map(&:first)}
     end
 
+    # The readable words on a page of the site (a path or a full address on its
+    # domain), without its scripts, styles, navigation and footer, cut to `words`:
+    # what the AI reads to fill in a profile. Nil when it can't be read.
+    def page_text(path_or_url, words: 1200)
+      url = path_or_url.to_s.match?(%r{\Ahttps?://}) ? path_or_url.to_s : "https://#{domain}/#{path_or_url.to_s.delete_prefix("/")}"
+      return unless self.class.normalize(url) == domain
+
+      response = follow(url)
+      return unless response[:status] == 200
+
+      text_of(response[:body]).split.first(words).join(" ").presence
+    end
+
+    def text_of(html)
+      body = html.to_s.gsub(%r{<(script|style|noscript|svg|nav|footer|header)\b.*?</\1>}mi, " ")
+      squish(strip_tags(body))
+    end
+
     private
 
     def part

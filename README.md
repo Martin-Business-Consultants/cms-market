@@ -4,6 +4,14 @@ A plugin for the CMS (see `docs/plugins.md` in [Libre Publish](https://github.co
 
 The big picture behind the site's SEO and marketing, beside the site it's about.
 
+- **Get started** with a short intake: the business's name, website and ZIP, and a line on what it
+  does. The AI plugin then reads the website (the home page and its about, services and locations
+  pages) and what's in the CMS (its pages and the brand brief). From those it fills in the rest of
+  the profile as a starting point: industry, area, offerings, audience, positioning, starting goals,
+  search location, its name on Maps and a radius. It also suggests competitors and searches to watch,
+  each a click from being added. It fills only empty fields and marks each one for a person to check;
+  a field someone changes is theirs from then on. Agents and harnesses can run it too:
+  `cms post /api/market/intake '{"intake":{"business_name":"…","website":"…","local_zip":"…"}}'`.
 - **The profile** says what the business is: its industry, where and whom it serves, what it sells, how it
   wants to be seen, what it's after, and where its customers search from (Market › Profile). Its website
   is the site itself (Settings › General).

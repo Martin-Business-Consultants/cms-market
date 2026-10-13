@@ -1,0 +1,34 @@
+<% @page_title = "Get started" %>
+
+<%= render "layouts/shared/page_header", title: "Get started" %>
+
+<%= form_with url: market_intake_path, scope: :intake, class: "stack stack--lg" do |form| %>
+  <section class="panel panel--padded fields">
+    <div class="stack stack--xs">
+      <h2 class="heading">A few things about the business</h2>
+      <p class="text-muted">
+        Just these. <%= Market::Plan.ai_available? ? "The AI then reads the website and what's here in the CMS and fills in the rest of the market profile (industry, area, what it sells, who it serves, how it stands out), and suggests competitors and searches to watch. You check it all after." : "#{Market::Plan.ai_unavailable_reason}, so the rest is filled in by hand on the profile." %>
+      </p>
+    </div>
+    <div class="grid grid--2 fields-grid">
+      <%= settings_field "Business name" do %>
+        <%= form.text_field :business_name, value: @profile.business_name, required: true, autofocus: true %>
+      <% end %>
+      <%= settings_field "Website" do %>
+        <%= form.url_field :website, value: @profile.website, placeholder: "https://example.com" %>
+      <% end %>
+    </div>
+    <div class="grid grid--2 fields-grid">
+      <%= settings_field "ZIP or postcode", hint: "Where the business is: for local search on Google Maps." do %>
+        <%= form.text_field :local_zip, value: @profile.local_zip, autocomplete: "postal-code" %>
+      <% end %>
+    </div>
+    <%= settings_field "What it does, in a line", hint: "Optional: helps when the website doesn't say it plainly." do %>
+      <%= form.text_area :about, rows: 2, placeholder: "Family-run plumbers covering Grand Rapids and the lakeshore, 24/7 emergencies" %>
+    <% end %>
+  </section>
+  <div class="cluster">
+    <button type="submit" class="btn btn--primary"><%= Market::Plan.ai_available? ? "Save and let the AI fill in the rest" : "Save" %></button>
+    <%= link_to "Fill in the whole profile myself", edit_market_profile_path, class: "btn" %>
+  </div>
+<% end %>

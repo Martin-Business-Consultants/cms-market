@@ -1,15 +1,30 @@
 <% @page_title = "Market profile" %>
 
 <% content_for :page_actions do %>
+  <% if Market::Plan.ai_available? %>
+    <%= link_to "Fill in with AI", new_market_intake_path, class: "btn" %>
+  <% end %>
   <%= link_to "Market", market_overview_path, class: "btn" %>
 <% end %>
 <%= render "layouts/shared/page_header", title: "Market profile" %>
 
+<% if @profile.ai_filled.any? %>
+  <p class="market-notice">The AI filled in <%= @profile.ai_filled.map { Market::Profile::LABELS.fetch(it, it.humanize).downcase }.to_sentence %>: check them. A field you change is yours from then on.</p>
+<% end %>
+
 <%= form_with url: market_profile_path, method: :patch, scope: :profile, class: "stack stack--lg" do |form| %>
   <section class="panel panel--padded fields">
+    <div class="grid grid--2 fields-grid">
+      <%= settings_field "Business name" do %>
+        <%= form.text_field :business_name, value: @profile.business_name %>
+      <% end %>
+      <%= settings_field "Website", hint: "Blank uses the site's address (Settings › General)." do %>
+        <%= form.url_field :website, value: @profile.stored["website"], placeholder: Site.public_base_url %>
+      <% end %>
+    </div>
     <div class="stack stack--xs">
       <h2 class="heading"><%= @profile.business_name %></h2>
-      <p class="text-muted">What every comparison, finding and plan starts from. The website is the site's own address<%= " (#{@profile.domain})" if @profile.domain %>, from Settings › General.</p>
+      <p class="text-muted">What every comparison, finding and plan starts from.</p>
     </div>
     <div class="grid grid--2 fields-grid">
       <%= settings_field "Industry", hint: "As specific as useful: “Residential plumbing”, not “Services”." do %>

@@ -1,0 +1,70 @@
+<% @page_title = "Get started" %>
+<% can_write = Current.user.can?("market:write") %>
+
+<% content_for :page_actions do %>
+  <%= link_to "Profile", edit_market_profile_path, class: "btn" %>
+  <% if can_write && !@intake.working? %>
+    <%= link_to "Start again", new_market_intake_path, class: "btn" %>
+  <% end %>
+<% end %>
+<%= render "layouts/shared/page_header", title: "Get started" %>
+
+<div class="stack stack--lg">
+  <% if @intake.working? %>
+    <p class="market-notice" data-controller="refresh" data-refresh-interval-value="4">
+      <%= icon_tag "refresh" %> Reading <%= @profile.domain || "the site" %> and what's in the CMS, then filling in the profile. A minute or two.
+    </p>
+  <% elsif @intake.failed? %>
+    <p class="notice notice--danger" role="alert">The AI couldn't fill in the profile: <%= @intake.error %>. <%= link_to "Fill it in by hand", edit_market_profile_path, class: "link" %>.</p>
+  <% else %>
+    <section class="panel panel--padded stack stack--sm">
+      <h2 class="heading">What the AI filled in</h2>
+      <% if @intake.summary %><p class="market-text"><%= @intake.summary %></p><% end %>
+      <% if @intake.filled.any? %>
+        <dl class="market-facts text-small">
+          <% @intake.filled.each do |field| %>
+            <%# herb:key field %>
+            <dt><%= Market::Profile::LABELS.fetch(field, field.humanize) %></dt>
+            <dd class="market-text"><%= field == "local_radius_miles" ? "#{@profile.local_radius_miles.to_i} miles" : @profile.stored[field] %></dd>
+          <% end %>
+        </dl>
+        <p class="text-small text-muted">These are a starting point: check each and change what's wrong on the <%= link_to "profile", edit_market_profile_path, class: "link" %>. A field you change is yours from then on.</p>
+      <% else %>
+        <p class="text-small text-muted">Nothing new to fill in: the profile already had it all.</p>
+      <% end %>
+      <% if @intake.to_check.any? %>
+        <div class="stack stack--xs">
+          <strong class="text-small">Worth checking</strong>
+          <ul class="market-changes text-small">
+            <% @intake.to_check.each_with_index do |note, index| %>
+              <%# herb:key index %>
+              <li><%= note %></li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+    </section>
+
+    <% competitors = @intake.new_competitor_suggestions %>
+    <% keywords = @intake.new_keyword_suggestions %>
+    <% if can_write && (competitors.any? || keywords.any?) %>
+      <section class="panel panel--padded stack stack--sm">
+        <h2 class="heading">To watch</h2>
+        <p class="text-small text-muted">Suggestions, not facts: check each before adding it.</p>
+        <% competitors.each_with_index do |suggestion, index| %>
+          <%# herb:key index %>
+          <div class="row row--between market-suggestion">
+            <span class="grow"><strong><%= suggestion["name"] %></strong> <span class="text-small text-muted"><%= [suggestion["website"], suggestion["why"]].compact.join(" · ") %></span></span>
+            <%= link_to "Check and add", new_market_competitor_path(name: suggestion["name"], website: suggestion["website"]), class: "btn btn--sm" %>
+          </div>
+        <% end %>
+        <% if keywords.any? %>
+          <div class="row row--between market-suggestion">
+            <span class="grow"><strong>Searches to track</strong> <span class="text-small text-muted"><%= keywords.join(", ") %></span></span>
+            <%= button_to "Track them", market_keywords_path, params: {keyword: {keywords: keywords.join("\n"), source: "plan"}}, class: "btn btn--sm" %>
+          </div>
+        <% end %>
+      </section>
+    <% end %>
+  <% end %>
+</div>

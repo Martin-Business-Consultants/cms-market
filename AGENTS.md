@@ -18,6 +18,9 @@ This repository is a plugin for the Libre Publish CMS: a Rails engine loaded int
   `SearchRequest` ledger) with a ceiling first, records every call, retries what may pass with
   backoff, and raises `AuthError`, `FundsError` and `BudgetError` (which stop a pull) or
   `InvalidError` and `UnavailableError` (which skip a part). `Market::SearchPull#run!` never raises.
+- `Market::Intake.start` saves the intake's answers on the profile, then `#run!` (in `IntakeJob`,
+  through the AI plugin) reads the site (`Probe#page_text`) and the CMS, and `Profile.fill_in` sets
+  only empty fields, recording them in the profile's `ai_filled` until a person changes them.
 - Local search: `Market::Profile` holds a ZIP, radius and grid; `Market::Geocoder` locates the ZIP
   once (OpenStreetMap). `Market::LocalGrid` lays the points; `SearchPull#local_scans` asks
   `Search::Api#maps` at each (Google Maps, a point and zoom) and keeps a `Market::LocalScan` per

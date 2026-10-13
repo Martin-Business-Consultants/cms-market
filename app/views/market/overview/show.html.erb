@@ -11,6 +11,14 @@
 <%= render "layouts/shared/page_header", title: "Market" %>
 
 <div class="stack stack--lg">
+  <% if can_write && @profile.blank? && !Market::Intake.working? %>
+    <section class="panel panel--padded stack stack--sm market-start">
+      <h2 class="heading">Get started</h2>
+      <p class="text-muted">Give the business's name, website and ZIP, and <%= Market::Plan.ai_available? ? "the AI fills in the rest of the market profile from the website: industry, area, what it sells, who it serves, how it stands out, and competitors and searches to watch." : "fill in the rest of the market profile." %> It takes a minute.</p>
+      <div><%= link_to "Get started", new_market_intake_path, class: "btn btn--primary" %></div>
+    </section>
+  <% end %>
+
   <section class="panel panel--padded stack stack--sm">
     <div class="row row--between">
       <h2 class="heading"><%= @profile.business_name %></h2>
